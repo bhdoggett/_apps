@@ -1,5 +1,9 @@
 @import '../shared.css';
 
+* {
+  touch-action: manipulation;
+}
+
 body {
   display: flex;
   flex-direction: column;
