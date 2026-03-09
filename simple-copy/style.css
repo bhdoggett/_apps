@@ -1,0 +1,124 @@
+@import '../shared.css';
+
+.back-link {
+  position: fixed;
+  top: 1.5rem;
+  left: 1.5rem;
+  font-size: 0.65rem;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--muted);
+  text-decoration: none;
+  transition: color 0.15s;
+  z-index: 10;
+}
+
+.back-link:hover {
+  color: var(--fg);
+}
+
+#app {
+  max-width: 620px;
+  margin: 0 auto;
+  padding: 3.5rem 2rem 4rem;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ---- Header ---- */
+
+.app-header {
+  margin-bottom: 2rem;
+  user-select: none;
+}
+
+.app-title {
+  font-family: var(--font-display);
+  font-size: clamp(3.5rem, 12vw, 6rem);
+  font-weight: 900;
+  line-height: 0.88;
+  letter-spacing: -0.03em;
+}
+
+.header-rule {
+  height: 1px;
+  background: var(--rule);
+  margin: 1.1rem 0 0.8rem;
+}
+
+.header-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-size: 0.65rem;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+/* ---- Editor ---- */
+
+.editor-wrap {
+  flex: 1;
+  margin-bottom: 1.2rem;
+}
+
+#editor {
+  width: 100%;
+  min-height: 240px;
+  background: none;
+  border: none;
+  border-bottom: 1px solid var(--rule);
+  outline: none;
+  resize: none;
+  font-family: var(--font-mono);
+  font-size: 0.95rem;
+  line-height: 1.6;
+  color: var(--fg);
+  caret-color: var(--fg);
+  padding: 0.5rem 0 1rem;
+}
+
+#editor::placeholder {
+  color: var(--muted);
+  font-style: italic;
+}
+
+/* ---- Actions ---- */
+
+.actions {
+  display: flex;
+  gap: 0.8rem;
+}
+
+.action-btn {
+  background: none;
+  border: 1px solid var(--muted);
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  padding: 0.45rem 0.85rem;
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s, background 0.15s;
+}
+
+.action-btn:hover,
+.action-btn:focus-visible {
+  border-color: var(--fg);
+  color: var(--bg);
+  background: var(--fg);
+}
+
+.action-btn.muted {
+  border-color: var(--dim);
+  color: var(--dim);
+}
+
+.action-btn.muted:hover {
+  border-color: var(--muted);
+  color: var(--bg);
+  background: var(--muted);
+}

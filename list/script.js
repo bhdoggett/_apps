@@ -61,6 +61,49 @@ function renderList(animateFirst = false) {
 // =========================================================
 let dragSrcId = null;
 
+function addTouchListeners(handle, id) {
+  handle.addEventListener('touchstart', (e) => {
+    const li = handle.closest('.list-item');
+    if (li.classList.contains('completing') || li.classList.contains('removing')) return;
+    dragSrcId = id;
+    li.classList.add('dragging');
+  }, { passive: true });
+
+  handle.addEventListener('touchmove', (e) => {
+    if (dragSrcId === null) return;
+    e.preventDefault();
+    const touch = e.touches[0];
+    const target = document.elementFromPoint(touch.clientX, touch.clientY)?.closest('.list-item');
+    document.querySelectorAll('.list-item').forEach(el => el.classList.remove('drag-above', 'drag-below'));
+    if (target && Number(target.dataset.id) !== dragSrcId) {
+      const mid = target.getBoundingClientRect().top + target.getBoundingClientRect().height / 2;
+      target.classList.toggle('drag-above', touch.clientY < mid);
+      target.classList.toggle('drag-below', touch.clientY >= mid);
+    }
+  }, { passive: false });
+
+  handle.addEventListener('touchend', (e) => {
+    if (dragSrcId === null) return;
+    const touch = e.changedTouches[0];
+    const target = document.elementFromPoint(touch.clientX, touch.clientY)?.closest('.list-item');
+    document.querySelectorAll('.list-item').forEach(el =>
+      el.classList.remove('dragging', 'drag-above', 'drag-below')
+    );
+    if (target && Number(target.dataset.id) !== dragSrcId) {
+      const mid = target.getBoundingClientRect().top + target.getBoundingClientRect().height / 2;
+      const insertBefore = touch.clientY < mid;
+      const targetId = Number(target.dataset.id);
+      const srcIdx = items.findIndex(i => i.id === dragSrcId);
+      const [moved] = items.splice(srcIdx, 1);
+      const dstIdx = items.findIndex(i => i.id === targetId);
+      items.splice(insertBefore ? dstIdx : dstIdx + 1, 0, moved);
+      saveItems();
+      renderList();
+    }
+    dragSrcId = null;
+  });
+}
+
 function addDragListeners(li, id) {
   li.draggable = true;
 
@@ -132,6 +175,7 @@ function createListItem(item, animate) {
 
   check.addEventListener('change', () => completeItem(item.id, li));
   addDragListeners(li, item.id);
+  addTouchListeners(handle, item.id);
 
   li.appendChild(handle);
   li.appendChild(check);
