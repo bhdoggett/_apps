@@ -1,0 +1,217 @@
+.app {
+  max-width: 620px;
+  margin: 0 auto;
+  padding: 3.5rem 2rem 4rem;
+  min-height: 100vh;
+}
+
+.headerMeta {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-size: 0.65rem;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+/* ---- List ---- */
+
+.list {
+  list-style: none;
+}
+
+@keyframes slideIn {
+  from { opacity: 0; transform: translateY(-10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.listItem {
+  display: flex;
+  align-items: center;
+  gap: 1.1rem;
+  padding: 0.95rem 0;
+  border-bottom: 1px solid var(--rule);
+  max-height: 80px;
+  overflow: hidden;
+  transition:
+    max-height 0.5s cubic-bezier(0.4, 0, 0.2, 1),
+    opacity 0.4s ease,
+    padding 0.5s cubic-bezier(0.4, 0, 0.2, 1),
+    border-color 0.5s ease;
+}
+
+.listItem.fresh {
+  animation: slideIn 0.3s cubic-bezier(0.2, 0, 0, 1) forwards;
+}
+
+.listItem.removing {
+  max-height: 0;
+  opacity: 0;
+  padding-top: 0;
+  padding-bottom: 0;
+  border-bottom-color: transparent;
+}
+
+/* ---- Drag handle ---- */
+
+.dragHandle {
+  color: var(--muted);
+  font-size: 0.8rem;
+  cursor: grab;
+  flex-shrink: 0;
+  opacity: 0;
+  transition: opacity 0.15s;
+  user-select: none;
+  line-height: 1;
+}
+
+.listItem:hover .dragHandle {
+  opacity: 1;
+}
+
+.listItem.dragging {
+  opacity: 0.35;
+}
+
+.listItem.dragAbove {
+  box-shadow: 0 -2px 0 var(--fg);
+}
+
+.listItem.dragBelow {
+  box-shadow: 0 2px 0 var(--fg);
+}
+
+/* Custom checkbox */
+
+.itemCheck {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 16px;
+  height: 16px;
+  border: 1px solid var(--muted);
+  flex-shrink: 0;
+  cursor: pointer;
+  position: relative;
+  transition: border-color 0.15s;
+}
+
+.itemCheck:hover {
+  border-color: var(--fg);
+}
+
+.itemCheck:checked {
+  border-color: var(--fg);
+  background: none;
+}
+
+.itemCheck:checked::before {
+  content: '';
+  position: absolute;
+  inset: 3px;
+  background: var(--fg);
+}
+
+/* Item text + strikethrough */
+
+.itemText {
+  font-family: var(--font-mono);
+  font-size: 0.95rem;
+  line-height: 1.4;
+  flex: 1;
+  position: relative;
+  color: var(--fg);
+  transition: color 0.35s ease;
+  cursor: default;
+  user-select: none;
+}
+
+.itemText::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  height: 1px;
+  background: var(--fg);
+  width: 0;
+  transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.listItem.completing .itemText {
+  color: var(--muted);
+}
+
+.listItem.completing .itemText::after {
+  width: 100%;
+}
+
+/* ---- Empty state ---- */
+
+.emptyState {
+  padding: 3rem 0 1rem;
+  font-size: 0.7rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+/* ---- Add form ---- */
+
+.addForm {
+  border-top: 1px solid var(--rule);
+  padding: 0.95rem 0;
+}
+
+.addFormInner {
+  display: flex;
+  align-items: center;
+  gap: 1.2rem;
+}
+
+.addPrompt {
+  font-size: 0.7rem;
+  letter-spacing: 0.15em;
+  color: var(--muted);
+  text-transform: uppercase;
+  flex-shrink: 0;
+  user-select: none;
+}
+
+.addInput {
+  flex: 1;
+  background: none;
+  border: none;
+  outline: none;
+  font-family: var(--font-mono);
+  font-size: 0.95rem;
+  color: var(--fg);
+  padding: 0.3rem 0;
+  caret-color: var(--fg);
+}
+
+.addInput::placeholder {
+  color: var(--muted);
+  font-style: italic;
+}
+
+.addBtn {
+  background: none;
+  border: 1px solid var(--muted);
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  padding: 0.45rem 0.85rem;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: border-color 0.15s, color 0.15s, background 0.15s;
+}
+
+.addBtn:hover,
+.addBtn:focus-visible {
+  border-color: var(--fg);
+  color: var(--bg);
+  background: var(--fg);
+}

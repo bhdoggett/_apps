@@ -1,0 +1,22 @@
+.appHeader {
+  margin-bottom: 2rem;
+  user-select: none;
+}
+
+.appTitle {
+  font-family: var(--font-display);
+  font-size: clamp(3.5rem, 12vw, 6rem);
+  font-weight: 900;
+  line-height: 0.88;
+  letter-spacing: -0.03em;
+}
+
+.headerRule {
+  height: 1px;
+  background: var(--rule);
+  margin: 1.1rem 0 0;
+}
+
+.headerMeta {
+  margin-top: 0.8rem;
+}

@@ -1,0 +1,40 @@
+.dropZone {
+  border: 1px solid var(--rule);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 220px;
+  margin-bottom: 2rem;
+  transition: border-color 0.15s, background 0.15s;
+  cursor: pointer;
+}
+
+.dropZone.dragOver {
+  border-color: var(--fg);
+  background: var(--dim);
+}
+
+.inner {
+  text-align: center;
+  pointer-events: none;
+}
+
+.label {
+  font-size: 0.7rem;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 0.6rem;
+}
+
+.or {
+  font-size: 0.65rem;
+  letter-spacing: 0.1em;
+  color: var(--dim);
+  margin-bottom: 0.8rem;
+  text-transform: uppercase;
+}
+
+.browseBtn {
+  pointer-events: all;
+}

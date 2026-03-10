@@ -1,0 +1,36 @@
+.btn {
+  background: none;
+  border: 1px solid var(--muted);
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  padding: 0.45rem 0.85rem;
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s, background 0.15s;
+  line-height: 1;
+}
+
+.btn:hover,
+.btn:focus-visible {
+  border-color: var(--fg);
+  color: var(--bg);
+  background: var(--fg);
+}
+
+.btn:disabled {
+  opacity: 0.3;
+  cursor: wait;
+}
+
+.btn.muted {
+  border-color: var(--dim);
+  color: var(--dim);
+}
+
+.btn.muted:hover {
+  border-color: var(--muted);
+  color: var(--bg);
+  background: var(--muted);
+}

@@ -1,0 +1,125 @@
+.app {
+  max-width: 620px;
+  margin: 0 auto;
+  padding: 3.5rem 2rem 4rem;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.fileMeta {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 1.2rem;
+}
+
+.fileInfo {
+  font-size: 0.65rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.player {
+  width: 100%;
+  margin-bottom: 1.5rem;
+  accent-color: var(--fg);
+  filter: invert(1) hue-rotate(180deg);
+}
+
+.transformRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.8rem;
+  margin-bottom: 1rem;
+}
+
+.transformBtn {
+  background: none;
+  border: 1px solid var(--dim);
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  padding: 0.45rem 0.85rem;
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s, background 0.15s;
+}
+
+.transformBtn:hover,
+.transformBtn:focus-visible {
+  border-color: var(--muted);
+  color: var(--fg);
+}
+
+.transformBtn.selected {
+  border-color: var(--fg);
+  color: var(--fg);
+}
+
+.transformBtn:disabled {
+  opacity: 0.3;
+  cursor: wait;
+}
+
+.applyRow {
+  display: flex;
+  gap: 0.8rem;
+  margin-bottom: 1.5rem;
+  align-items: center;
+}
+
+.applyBtn {
+  background: none;
+  border: 1px solid var(--dim);
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  padding: 0.3rem 0.7rem;
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s, background 0.15s;
+}
+
+.applyBtn.hasChanges {
+  border-color: var(--fg);
+  color: var(--fg);
+}
+
+.applyBtn.hasChanges:hover {
+  background: var(--dim);
+}
+
+.applyBtn:disabled {
+  opacity: 0.3;
+  cursor: wait;
+}
+
+.resetTransformBtn {
+  margin-left: auto;
+  border-color: var(--dim);
+  color: var(--dim);
+}
+
+.resetTransformBtn:hover {
+  border-color: var(--muted);
+  color: var(--bg);
+  background: var(--muted);
+}
+
+.convertRow {
+  display: flex;
+  gap: 0.8rem;
+  margin-bottom: 1rem;
+}
+
+.errorMsg {
+  font-size: 0.65rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 1rem;
+}
