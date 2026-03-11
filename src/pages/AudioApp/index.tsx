@@ -217,7 +217,7 @@ export default function AudioApp() {
       <AppHeader title="audio" />
 
       {!hasFile && !state.statusVisible && (
-        <DropZone accept="audio/*" onFile={loadFile} label="drop audio file here" />
+        <DropZone accept="audio/mpeg,audio/wav,audio/aac,audio/ogg,audio/flac,audio/x-m4a,.mp3,.wav,.aac,.ogg,.flac,.m4a" onFile={loadFile} label="drop audio file here" />
       )}
 
       <StatusMessage message={state.statusMsg} visible={state.statusVisible} />
