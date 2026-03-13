@@ -1,15 +1,15 @@
 import { useState } from 'react'
 import BackLink from '../../components/BackLink'
-import styles from './CounterApp.module.css'
+import styles from './CountApp.module.css'
 
-export default function CounterApp() {
+export default function CountApp() {
   const [count, setCount] = useState(0)
 
   return (
     <div className={styles.wrap}>
       <BackLink />
       <div className={styles.inner}>
-        <h1 className={styles.title}>counter</h1>
+        <h1 className={styles.title}>count</h1>
         <div className={styles.rule} />
         <div className={styles.display}>{count}</div>
         <div className={styles.btnRow}>

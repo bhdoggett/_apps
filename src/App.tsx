@@ -1,7 +1,7 @@
 import { createBrowserRouter, RouterProvider, Outlet } from 'react-router-dom'
 import Landing from './pages/Landing'
 import ListApp from './pages/ListApp'
-import CounterApp from './pages/CounterApp'
+import CountApp from './pages/CountApp'
 import TextApp from './pages/TextApp'
 import ImageApp from './pages/ImageApp'
 import AudioApp from './pages/AudioApp'
@@ -9,6 +9,7 @@ import DecibelsApp from './pages/DecibelsApp'
 import LocationApp from './pages/LocationApp'
 import ErrorBoundary, { RouteErrorFallback } from './components/ErrorBoundary'
 import NotFound from './pages/NotFound'
+import ThemeToggle from './components/ThemeToggle'
 
 const router = createBrowserRouter([
   {
@@ -17,7 +18,7 @@ const router = createBrowserRouter([
     children: [
       { path: '/', element: <Landing /> },
       { path: '/list', element: <ListApp /> },
-      { path: '/counter', element: <CounterApp /> },
+      { path: '/count', element: <CountApp /> },
       { path: '/text', element: <TextApp /> },
       { path: '/image', element: <ImageApp /> },
       { path: '/audio', element: <AudioApp /> },
@@ -32,6 +33,7 @@ export default function App() {
   return (
     <ErrorBoundary>
       <RouterProvider router={router} />
+      <ThemeToggle />
     </ErrorBoundary>
   )
 }

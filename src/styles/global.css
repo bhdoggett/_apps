@@ -16,6 +16,14 @@
   --font-mono: 'Courier Prime', 'Courier New', monospace;
 }
 
+[data-theme="light"] {
+  --bg: #f5f5f5;
+  --fg: #0a0a0a;
+  --muted: #848484;
+  --dim: #e0e0e0;
+  --rule: #d0d0d0;
+}
+
 html {
   height: 100%;
 }
