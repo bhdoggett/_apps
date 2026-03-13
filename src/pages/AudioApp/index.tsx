@@ -19,6 +19,7 @@ type State = {
   currentFile: File | null
   audioBuffer: AudioBuffer | null
   workingBuffer: AudioBuffer | null
+  preTransformBuffer: AudioBuffer | null
   selectedTransforms: string[]
   speedState: Record<SpeedKey, 0 | 1 | 2>
   appliedSnapshot: string
@@ -42,7 +43,7 @@ type Action =
   | { type: 'TOGGLE_TRANSFORM'; action: string }
   | { type: 'CYCLE_SPEED'; group: SpeedKey }
   | { type: 'APPLY_START' }
-  | { type: 'APPLY_DONE'; workingBuffer: AudioBuffer; snapshot: string; playerSrc: string }
+  | { type: 'APPLY_DONE'; workingBuffer: AudioBuffer; preTransformBuffer: AudioBuffer; snapshot: string; playerSrc: string }
   | { type: 'RESET_TRANSFORMS'; playerSrc: string }
   | { type: 'ENCODE_START' }
   | { type: 'ENCODE_DONE'; playerSrc: string }
@@ -59,6 +60,7 @@ const initial: State = {
   currentFile: null,
   audioBuffer: null,
   workingBuffer: null,
+  preTransformBuffer: null,
   selectedTransforms: [],
   speedState: { half: 0, double: 0 },
   appliedSnapshot: '',
@@ -88,7 +90,7 @@ function reducer(state: State, action: Action): State {
     case 'LOAD_START':
       return { ...initial, currentFile: action.file, statusMsg: 'loading', statusVisible: true }
     case 'LOAD_DONE':
-      return { ...state, audioBuffer: action.buffer, workingBuffer: action.buffer, statusVisible: false, playerSrc: action.playerSrc, playing: false, currentTime: 0, trimStart: 0, trimEnd: action.buffer.duration }
+      return { ...state, audioBuffer: action.buffer, workingBuffer: action.buffer, preTransformBuffer: action.buffer, statusVisible: false, playerSrc: action.playerSrc, playing: false, currentTime: 0, trimStart: 0, trimEnd: action.buffer.duration }
     case 'LOAD_ERROR':
       return { ...state, statusVisible: false, errorMsg: 'could not decode audio — try a different format' }
     case 'TOGGLE_TRANSFORM': {
@@ -109,9 +111,9 @@ function reducer(state: State, action: Action): State {
     case 'APPLY_START':
       return { ...state, buttonsDisabled: true, statusMsg: 'loading', statusVisible: true }
     case 'APPLY_DONE':
-      return { ...state, workingBuffer: action.workingBuffer, appliedSnapshot: action.snapshot, buttonsDisabled: false, statusVisible: false, playerSrc: action.playerSrc, playing: false, currentTime: 0, trimStart: 0, trimEnd: action.workingBuffer.duration }
+      return { ...state, workingBuffer: action.workingBuffer, preTransformBuffer: action.preTransformBuffer, appliedSnapshot: action.snapshot, buttonsDisabled: false, statusVisible: false, playerSrc: action.playerSrc, playing: false, currentTime: 0, trimStart: 0, trimEnd: action.workingBuffer.duration }
     case 'RESET_TRANSFORMS':
-      return { ...state, workingBuffer: state.audioBuffer, selectedTransforms: [], speedState: { half: 0, double: 0 }, appliedSnapshot: '', playerSrc: action.playerSrc, playing: false, currentTime: 0, trimStart: 0, trimEnd: state.audioBuffer!.duration }
+      return { ...state, workingBuffer: state.audioBuffer, preTransformBuffer: state.audioBuffer, selectedTransforms: [], speedState: { half: 0, double: 0 }, appliedSnapshot: '', playerSrc: action.playerSrc, playing: false, currentTime: 0, trimStart: 0, trimEnd: state.audioBuffer!.duration }
     case 'ENCODE_START':
       return { ...state, buttonsDisabled: true, statusMsg: 'loading', statusVisible: true }
     case 'ENCODE_DONE':
@@ -233,7 +235,7 @@ export default function AudioApp() {
     rafRef.current = requestAnimationFrame(tick)
   }, [state.trimEnd, state.trimStart])
 
-  function togglePlay() {
+  const togglePlay = useCallback(() => {
     const audio = playerRef.current!
     if (state.playing) {
       audio.pause()
@@ -247,24 +249,25 @@ export default function AudioApp() {
       dispatch({ type: 'SET_PLAYING', playing: true })
       rafRef.current = requestAnimationFrame(tick)
     }
-  }
+  }, [state.playing, state.trimStart, state.trimEnd, tick])
 
-  function seekTo(t: number) {
+  const seekTo = useCallback((t: number) => {
     const audio = playerRef.current!
     audio.currentTime = t
     dispatch({ type: 'SET_CURRENT_TIME', t })
-  }
+  }, [])
 
-  function setTrimStart(val: number) {
+  const setTrimStart = useCallback((val: number) => {
     const clamped = Math.max(0, Math.min(val, state.trimEnd - 0.1))
     dispatch({ type: 'SET_TRIM', start: clamped, end: state.trimEnd })
-    if (!state.playing) seekTo(clamped)
-  }
+    const audio = playerRef.current!
+    if (!state.playing) { audio.currentTime = clamped; dispatch({ type: 'SET_CURRENT_TIME', t: clamped }) }
+  }, [state.trimEnd, state.playing])
 
-  function setTrimEnd(val: number) {
+  const setTrimEnd = useCallback((val: number) => {
     const clamped = Math.min(state.workingBuffer?.duration ?? 0, Math.max(val, state.trimStart + 0.1))
     dispatch({ type: 'SET_TRIM', start: state.trimStart, end: clamped })
-  }
+  }, [state.trimStart, state.workingBuffer])
 
   async function startRecording() {
     try {
@@ -344,31 +347,39 @@ export default function AudioApp() {
   }
 
   function applyTransforms() {
-    if (!state.audioBuffer || !state.workingBuffer) return
+    if (!state.audioBuffer || !state.workingBuffer || !state.preTransformBuffer) return
     dispatch({ type: 'APPLY_START' })
     setTimeout(() => {
-      const transformsChanged = effectiveTransforms(state.selectedTransforms, state.speedState) !== state.appliedSnapshot
-      let buf: AudioBuffer
-      if (transformsChanged) {
-        buf = state.audioBuffer!
-        for (const action of state.selectedTransforms) {
-          if (action === 'reverse') buf = transformReverse(buf)
-          else if (action === 'mono') buf = transformMono(buf)
-          else if (action === 'normalize') buf = transformNormalize(buf)
-        }
-        for (const [group, s] of Object.entries(state.speedState) as [SpeedKey, number][]) {
-          if (s > 0) buf = transformSpeed(buf, SPEED_CYCLES[group].factors[s - 1])
-        }
-      } else {
-        buf = state.workingBuffer!
+      // Convert trim coords from workingBuffer space to preTransformBuffer space.
+      // Ratio accounts for speed changes. Reverse flips the time axis.
+      const ptb = state.preTransformBuffer!
+      const wb = state.workingBuffer!
+      const ratio = wb.duration > 0 ? ptb.duration / wb.duration : 1
+      // Use appliedSnapshot (not selectedTransforms) — we need to know if the
+      // current workingBuffer is reversed, not whether reverse is being applied now.
+      const wbIsReversed = state.appliedSnapshot.split(',').includes('reverse')
+      const ptbStart = wbIsReversed
+        ? Math.max(0, ptb.duration - state.trimEnd * ratio)
+        : state.trimStart * ratio
+      const ptbEnd = wbIsReversed
+        ? Math.min(ptb.duration, ptb.duration - state.trimStart * ratio)
+        : Math.min(state.trimEnd * ratio, ptb.duration)
+      const newBase = (ptbStart > 0 || ptbEnd < ptb.duration - 0.01)
+        ? trimBuffer(ptb, ptbStart, ptbEnd)
+        : ptb
+
+      let buf: AudioBuffer = newBase
+      for (const action of state.selectedTransforms) {
+        if (action === 'reverse') buf = transformReverse(buf)
+        else if (action === 'mono') buf = transformMono(buf)
+        else if (action === 'normalize') buf = transformNormalize(buf)
       }
-      const clampedEnd = Math.min(state.trimEnd, buf.duration)
-      if (state.trimStart > 0 || clampedEnd < buf.duration - 0.01) {
-        buf = trimBuffer(buf, state.trimStart, clampedEnd)
+      for (const [group, s] of Object.entries(state.speedState) as [SpeedKey, number][]) {
+        if (s > 0) buf = transformSpeed(buf, SPEED_CYCLES[group].factors[s - 1])
       }
       const wav = encodeWAV(buf)
       const snapshot = effectiveTransforms(state.selectedTransforms, state.speedState)
-      dispatch({ type: 'APPLY_DONE', workingBuffer: buf, snapshot, playerSrc: URL.createObjectURL(wav) })
+      dispatch({ type: 'APPLY_DONE', workingBuffer: buf, preTransformBuffer: newBase, snapshot, playerSrc: URL.createObjectURL(wav) })
     }, 300)
   }
 
@@ -434,14 +445,16 @@ export default function AudioApp() {
         </div>
       )}
 
-      <StatusMessage message={state.statusMsg} visible={state.statusVisible} />
+      {!hasFile && <StatusMessage message={state.statusMsg} visible={state.statusVisible} />}
 
       {state.errorMsg && <p className={styles.errorMsg}>{state.errorMsg}</p>}
 
-      {hasFile && !state.statusVisible && (
+      {hasFile && (
         <>
           <div className={styles.fileMeta}>
-            <span className={styles.fileInfo}>{infoText}</span>
+            <span className={styles.fileInfo}>
+              {state.statusVisible ? state.statusMsg : infoText}
+            </span>
             <button className={styles.closeBtn} onClick={resetAll}>×</button>
           </div>
 
