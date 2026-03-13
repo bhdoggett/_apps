@@ -3,7 +3,7 @@ import styles from './Landing.module.css'
 
 const apps = [
   { path: '/list', name: 'list' },
-  { path: '/counter', name: 'counter' },
+  { path: '/count', name: 'count' },
   { path: '/text', name: 'text' },
   { path: '/image', name: 'image' },
   { path: '/audio', name: 'audio' },
