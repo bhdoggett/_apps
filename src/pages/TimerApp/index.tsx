@@ -67,7 +67,7 @@ export default function TimerApp() {
   useEffect(() => {
     if (timer.mode === 'done' && !notifiedRef.current) {
       notifiedRef.current = true
-      if (Notification.permission === 'granted') {
+      if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
         new Notification('timer done')
       }
     }
@@ -77,7 +77,7 @@ export default function TimerApp() {
   }, [timer.mode])
 
   function startCountdown(minutes: number) {
-    if (Notification.permission === 'default') {
+    if (typeof Notification !== 'undefined' && Notification.permission === 'default') {
       Notification.requestPermission()
     }
     setTimer({
@@ -141,6 +141,7 @@ export default function TimerApp() {
 
     return (
       <div className={styles.overlay}>
+        <div className={styles.overlayBack}><BackLink /></div>
         <div className={styles.timerInner}>
           <div className={styles.labelRow}>
             <div className={styles.presetLabel}>{label}</div>

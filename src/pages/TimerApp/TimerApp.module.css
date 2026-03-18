@@ -83,6 +83,12 @@
   flex-direction: column;
 }
 
+.overlayBack {
+  position: absolute;
+  top: 3.5rem;
+  left: 2rem;
+}
+
 .labelRow {
   display: flex;
   justify-content: space-between;
