@@ -2,16 +2,20 @@ import { Link } from 'react-router-dom'
 import styles from './Landing.module.css'
 
 const apps = [
+  // text & data
   { path: '/list', name: 'list' },
   { path: '/count', name: 'count' },
   { path: '/text', name: 'text' },
+  // media
   { path: '/image', name: 'image' },
   { path: '/audio', name: 'audio' },
+  // audio & music
   { path: '/decibels', name: 'decibels' },
-  { path: '/location', name: 'location' },
-  { path: '/timer', name: 'timer' },
   { path: '/tuner', name: 'tuner' },
   { path: '/metronome', name: 'metronome' },
+  // tools & time
+  { path: '/timer', name: 'timer' },
+  { path: '/location', name: 'location' },
 ]
 
 export default function Landing() {
