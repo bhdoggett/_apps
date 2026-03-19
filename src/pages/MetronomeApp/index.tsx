@@ -109,7 +109,7 @@ export default function MetronomeApp() {
 
   function adjustBpm(delta: number) {
     setBpm(prev => {
-      const next = Math.max(20, Math.min(300, prev + delta))
+      const next = Math.max(40, Math.min(240, prev + delta))
       setBpmInput(String(next))
       return next
     })
@@ -124,7 +124,7 @@ export default function MetronomeApp() {
     if (taps.length >= 2) {
       const intervals = taps.slice(1).map((t, i) => t - taps[i])
       const avg = intervals.reduce((a, b) => a + b) / intervals.length
-      const newBpm = Math.max(20, Math.min(300, Math.round(60000 / avg)))
+      const newBpm = Math.max(40, Math.min(240, Math.round(60000 / avg)))
       setBpm(newBpm)
       setBpmInput(String(newBpm))
     }
@@ -160,28 +160,29 @@ export default function MetronomeApp() {
 
       <div className={styles.bpmRow}>
         <button className={styles.adjBtn} onClick={() => adjustBpm(-1)} aria-label="decrease BPM">−</button>
-        <input
-          className={styles.bpmInput}
-          type="text"
-          inputMode="numeric"
-          value={bpmInput}
-          onChange={e => {
-            const val = e.target.value
-            setBpmInput(val)
-            const n = parseInt(val, 10)
-            if (!isNaN(n) && n >= 20 && n <= 300) setBpm(n)
-          }}
-          onKeyDown={e => {
-            if (e.key === 'ArrowUp') { e.preventDefault(); adjustBpm(1) }
-            if (e.key === 'ArrowDown') { e.preventDefault(); adjustBpm(-1) }
-          }}
-          onBlur={() => setBpmInput(String(bpm))}
-          aria-label="BPM"
-        />
+        <div className={styles.bpmStack}>
+          <input
+            className={styles.bpmInput}
+            type="text"
+            inputMode="numeric"
+            value={bpmInput}
+            onChange={e => {
+              const val = e.target.value
+              setBpmInput(val)
+              const n = parseInt(val, 10)
+              if (!isNaN(n) && n >= 40 && n <= 240) setBpm(n)
+            }}
+            onKeyDown={e => {
+              if (e.key === 'ArrowUp') { e.preventDefault(); adjustBpm(1) }
+              if (e.key === 'ArrowDown') { e.preventDefault(); adjustBpm(-1) }
+            }}
+            onBlur={() => setBpmInput(String(bpm))}
+            aria-label="BPM"
+          />
+          <div className={styles.bpmLabel}>bpm</div>
+        </div>
         <button className={styles.adjBtn} onClick={() => adjustBpm(1)} aria-label="increase BPM">+</button>
       </div>
-
-      <div className={styles.bpmLabel}>bpm</div>
 
       <div className={styles.beatRow} style={{ '--beat-duration': beatDuration } as React.CSSProperties}>
         {Array.from({ length: beats }, (_, i) => {
