@@ -29,6 +29,7 @@ type State = {
   radialSizeY: number
   selectedStop: number | null
   gradientCopied: boolean
+  alpha: number
 }
 
 type Action =
@@ -52,6 +53,7 @@ type Action =
   | { type: 'SET_RADIAL_SIZE_X'; value: number }
   | { type: 'SET_RADIAL_SIZE_Y'; value: number }
   | { type: 'SET_GRADIENT_COPIED'; value: boolean }
+  | { type: 'SET_ALPHA'; value: number }
 
 const initial: State = {
   pickedColor: null,
@@ -73,13 +75,14 @@ const initial: State = {
   radialSizeY: 50,
   selectedStop: null,
   gradientCopied: false,
+  alpha: 100,
 }
 
 function reducer(state: State, action: Action): State {
   switch (action.type) {
     case 'PICK_COLOR': {
       const { r, g, b } = hexToRgb(action.hex)
-      return { ...state, pickedColor: { hex: action.hex, r, g, b }, error: '' }
+      return { ...state, pickedColor: { hex: action.hex, r, g, b }, error: '', alpha: 100 }
     }
     case 'SET_ERROR':
       return { ...state, error: action.msg }
@@ -137,6 +140,8 @@ function reducer(state: State, action: Action): State {
     case 'SET_RADIAL_SIZE_Y':   return { ...state, radialSizeY: Math.max(1, Math.min(200, action.value)) }
     case 'SET_GRADIENT_COPIED':
       return { ...state, gradientCopied: action.value }
+    case 'SET_ALPHA':
+      return { ...state, alpha: Math.max(0, Math.min(100, action.value)) }
     default:
       return state
   }
@@ -266,7 +271,8 @@ export default function ColorApp() {
       } else if (gradientModeRef.current === 'radial') {
         const cx_px = (radialCenterXRef.current / 100) * rect.width
         const orbitPx = rect.width * (ORBIT_PX / 260)
-        return Math.round(Math.max(0, Math.min(1, (clientX - rect.left - cx_px) / orbitPx)) * 100)
+        const dir = radialCenterXRef.current > 50 ? -1 : 1
+        return Math.round(Math.max(0, Math.min(1, dir * (clientX - rect.left - cx_px) / orbitPx)) * 100)
       } else {
         const rad = (angleRef.current * Math.PI) / 180
         const dirX = Math.sin(rad)
@@ -317,7 +323,7 @@ export default function ColorApp() {
   }, [])
 
   const { pickedColor, stops, angle, conicAngle, gradientMode, radialShape, selectedStop,
-          radialCenterX, radialCenterY, radialSizeX, radialSizeY } = state
+          radialCenterX, radialCenterY, radialSizeX, radialSizeY, alpha } = state
   gradientModeRef.current = gradientMode
   angleRef.current = gradientMode === 'conic' ? conicAngle : angle
   radialCenterXRef.current = radialCenterX
@@ -330,11 +336,27 @@ export default function ColorApp() {
     cmyk = rgbToCmyk(pickedColor.r, pickedColor.g, pickedColor.b)
   }
 
+  const alphaHex = Math.round(alpha / 100 * 255).toString(16).padStart(2, '0').toUpperCase()
   const formats: { key: string; label: string; value: string }[] = pickedColor
     ? [
-        { key: 'hex', label: 'HEX', value: pickedColor.hex.toUpperCase() },
-        { key: 'rgb', label: 'RGB', value: `rgb(${pickedColor.r}, ${pickedColor.g}, ${pickedColor.b})` },
-        { key: 'hsl', label: 'HSL', value: `hsl(${hsl.h}, ${hsl.s}%, ${hsl.l}%)` },
+        {
+          key: 'hex', label: 'HEX',
+          value: alpha < 100
+            ? `${pickedColor.hex.toUpperCase()}${alphaHex}`
+            : pickedColor.hex.toUpperCase(),
+        },
+        {
+          key: 'rgb', label: 'RGB',
+          value: alpha < 100
+            ? `rgba(${pickedColor.r}, ${pickedColor.g}, ${pickedColor.b}, ${(alpha / 100).toFixed(2)})`
+            : `rgb(${pickedColor.r}, ${pickedColor.g}, ${pickedColor.b})`,
+        },
+        {
+          key: 'hsl', label: 'HSL',
+          value: alpha < 100
+            ? `hsla(${hsl.h}, ${hsl.s}%, ${hsl.l}%, ${(alpha / 100).toFixed(2)})`
+            : `hsl(${hsl.h}, ${hsl.s}%, ${hsl.l}%)`,
+        },
         { key: 'cmyk', label: 'CMYK', value: `cmyk(${cmyk.c}%, ${cmyk.m}%, ${cmyk.y}%, ${cmyk.k}%)` },
       ]
     : []
@@ -394,23 +416,34 @@ export default function ColorApp() {
       {pickedColor && (
         <>
           <div className={styles.colorRow}>
-            <div
-              className={styles.swatch}
-              style={{ backgroundColor: pickedColor.hex }}
-            />
+            <div className={styles.swatchGroup}>
+              <div />
+              <div
+                className={styles.swatch}
+                style={{ backgroundColor: `rgba(${pickedColor.r}, ${pickedColor.g}, ${pickedColor.b}, ${alpha / 100})` }}
+              />
+              <input
+                type="range"
+                min={0}
+                max={100}
+                value={alpha}
+                className={styles.alphaSlider}
+                onChange={(e) => dispatch({ type: 'SET_ALPHA', value: Number(e.target.value) })}
+              />
+            </div>
           </div>
 
-          <div className={styles.colorRow}>
+          <div className={styles.formatsGrid}>
             {formats.map((fmt) => (
-              <div key={fmt.key} className={styles.colorBlock}>
+              <div
+                key={fmt.key}
+                className={[styles.colorBlock, state.copying === fmt.key ? styles.copied : ''].filter(Boolean).join(' ')}
+                onClick={() => copyValue(fmt.key, fmt.value)}
+              >
                 <div className={styles.formatLabel}>{fmt.label}</div>
-                <div className={styles.formatValue}>{fmt.value}</div>
-                <button
-                  className={[styles.copyBtn, state.copying === fmt.key ? styles.copied : ''].filter(Boolean).join(' ')}
-                  onClick={() => copyValue(fmt.key, fmt.value)}
-                >
-                  {state.copying === fmt.key ? 'copied' : 'copy'}
-                </button>
+                <div className={styles.formatValue}>
+                  {state.copying === fmt.key ? 'copied' : fmt.value}
+                </div>
               </div>
             ))}
           </div>
@@ -514,7 +547,8 @@ export default function ColorApp() {
               } else if (gradientMode === 'radial') {
                 const cx_px = (radialCenterX / 100) * rect.width
                 const orbitPx = rect.width * (ORBIT_PX / 260)
-                pos = Math.round(Math.max(0, Math.min(1, (e.clientX - rect.left - cx_px) / orbitPx)) * 100)
+                const dir = radialCenterX > 50 ? -1 : 1
+                pos = Math.round(Math.max(0, Math.min(1, dir * (e.clientX - rect.left - cx_px) / orbitPx)) * 100)
               } else {
                 const rad = (angle * Math.PI) / 180
                 const dirX = Math.sin(rad)
@@ -539,7 +573,8 @@ export default function ColorApp() {
                 const cx = 50, cy = 50
                 handleStyle = { left: `${cx + r * Math.cos(a)}%`, top: `${cy + r * Math.sin(a)}%` }
               } else if (gradientMode === 'radial') {
-                handleStyle = { left: `${radialCenterX + (stop.position / 100) * ORBIT_PCT}%`, top: `${radialCenterY}%` }
+                const dir = radialCenterX > 50 ? -1 : 1
+                handleStyle = { left: `${radialCenterX + dir * (stop.position / 100) * ORBIT_PCT}%`, top: `${radialCenterY}%` }
               } else {
                 const rad = (angle * Math.PI) / 180
                 const dirX = Math.sin(rad)
@@ -711,20 +746,17 @@ export default function ColorApp() {
         </div>
 
         {/* CSS output */}
-        <div className={styles.cssOutputWrap}>
-          <pre className={styles.cssOutput}>{gradCss}</pre>
-          <button
-            className={[styles.copyBtn, state.gradientCopied ? styles.copied : ''].filter(Boolean).join(' ')}
-            onClick={() => {
-              navigator.clipboard.writeText(gradCss).then(() => {
-                dispatch({ type: 'SET_GRADIENT_COPIED', value: true })
-                setTimeout(() => dispatch({ type: 'SET_GRADIENT_COPIED', value: false }), 1200)
-              })
-            }}
-          >
-            {state.gradientCopied ? 'copied' : 'copy'}
-          </button>
-        </div>
+        <pre
+          className={[styles.cssOutput, state.gradientCopied ? styles.copied : ''].filter(Boolean).join(' ')}
+          onClick={() => {
+            navigator.clipboard.writeText(gradCss).then(() => {
+              dispatch({ type: 'SET_GRADIENT_COPIED', value: true })
+              setTimeout(() => dispatch({ type: 'SET_GRADIENT_COPIED', value: false }), 1200)
+            })
+          }}
+        >
+          {state.gradientCopied ? 'copied' : gradCss}
+        </pre>
       </div>
     </div>
   )
