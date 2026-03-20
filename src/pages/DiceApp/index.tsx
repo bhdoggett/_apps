@@ -173,6 +173,8 @@ export default function DiceApp() {
   const stored = loadStored()
   const [numDice, setNumDice] = useState(stored?.numDice ?? 2)
   const [numSides, setNumSides] = useState(stored?.numSides ?? 6)
+  const [diceText, setDiceText] = useState(String(stored?.numDice ?? 2))
+  const [sidesText, setSidesText] = useState(String(stored?.numSides ?? 6))
   const [display, setDisplay] = useState<number[]>(stored?.lastDisplay ?? [])
   const [history, setHistory] = useState<number[][]>(stored?.history ?? [])
   const [rolling, setRolling] = useState(false)
@@ -194,17 +196,21 @@ export default function DiceApp() {
   }
 
   const changeDice = (n: number) => {
-    setNumDice(n)
+    const clamped = Math.max(1, Math.min(20, n))
+    setNumDice(clamped)
+    setDiceText(String(clamped))
     setHistory([])
     setDisplay([])
-    saveStored({ numDice: n, numSides, history: [], lastDisplay: [] })
+    saveStored({ numDice: clamped, numSides, history: [], lastDisplay: [] })
   }
 
   const changeSides = (n: number) => {
-    setNumSides(n)
+    const clamped = Math.max(2, n)
+    setNumSides(clamped)
+    setSidesText(String(clamped))
     setHistory([])
     setDisplay([])
-    saveStored({ numDice, numSides: n, history: [], lastDisplay: [] })
+    saveStored({ numDice, numSides: clamped, history: [], lastDisplay: [] })
   }
 
   const roll = useCallback(() => {
@@ -275,16 +281,36 @@ export default function DiceApp() {
         <div className={styles.control}>
           <span className={styles.controlLabel}>dice</span>
           <div className={styles.stepper}>
-            <button className={styles.stepBtn} onClick={() => changeDice(Math.max(1, numDice - 1))}>−</button>
-            <span className={styles.stepVal}>{numDice}</span>
-            <button className={styles.stepBtn} onClick={() => changeDice(Math.min(20, numDice + 1))}>+</button>
+            <button className={styles.stepBtn} onClick={() => changeDice(numDice - 1)}>−</button>
+            <input
+              type="number"
+              className={styles.stepVal}
+              value={diceText}
+              onChange={(e) => {
+                setDiceText(e.target.value)
+                const n = Number(e.target.value)
+                if (e.target.value !== '' && !isNaN(n) && n >= 1) changeDice(n)
+              }}
+              onBlur={() => changeDice(numDice)}
+            />
+            <button className={styles.stepBtn} onClick={() => changeDice(numDice + 1)}>+</button>
           </div>
         </div>
         <div className={styles.control}>
           <span className={styles.controlLabel}>sides</span>
           <div className={styles.stepper}>
-            <button className={styles.stepBtn} onClick={() => changeSides(Math.max(2, numSides - 1))}>−</button>
-            <span className={styles.stepVal}>{numSides}</span>
+            <button className={styles.stepBtn} onClick={() => changeSides(numSides - 1)}>−</button>
+            <input
+              type="number"
+              className={styles.stepVal}
+              value={sidesText}
+              onChange={(e) => {
+                setSidesText(e.target.value)
+                const n = Number(e.target.value)
+                if (e.target.value !== '' && !isNaN(n) && n >= 2) changeSides(n)
+              }}
+              onBlur={() => changeSides(numSides)}
+            />
             <button className={styles.stepBtn} onClick={() => changeSides(numSides + 1)}>+</button>
           </div>
         </div>
