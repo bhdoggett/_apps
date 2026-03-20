@@ -5,6 +5,7 @@ import styles from './ColorApp.module.css'
 
 const eyeDropperSupported = 'EyeDropper' in window
 const ORBIT_PX = 110
+const ORBIT_PCT = (ORBIT_PX / 260) * 100  // ~42.3% — scales with bar size
 
 type PickedColor = { hex: string; r: number; g: number; b: number }
 
@@ -254,45 +255,64 @@ export default function ColorApp() {
   )
 
   useEffect(() => {
-    function onMouseMove(e: MouseEvent) {
-      if (!dragRef.current) return
-      didDragRef.current = true
-      const bar = document.getElementById('gradient-bar')
-      if (!bar) return
-      const rect = bar.getBoundingClientRect()
-      let pos: number
+    function posFromPoint(clientX: number, clientY: number, rect: DOMRect): number {
       if (gradientModeRef.current === 'conic') {
         const cx = rect.left + rect.width / 2
         const cy = rect.top + rect.height / 2
         const fromRad = (angleRef.current * Math.PI) / 180
-        let angleRad = Math.atan2(e.clientY - cy, e.clientX - cx) + Math.PI / 2 - fromRad
+        let angleRad = Math.atan2(clientY - cy, clientX - cx) + Math.PI / 2 - fromRad
         if (angleRad < 0) angleRad += 2 * Math.PI
-        pos = Math.round((angleRad / (2 * Math.PI)) * 100)
+        return Math.round((angleRad / (2 * Math.PI)) * 100)
       } else if (gradientModeRef.current === 'radial') {
         const cx_px = (radialCenterXRef.current / 100) * rect.width
-        pos = Math.round(Math.max(0, Math.min(1, (e.clientX - rect.left - cx_px) / ORBIT_PX)) * 100)
+        const orbitPx = rect.width * (ORBIT_PX / 260)
+        return Math.round(Math.max(0, Math.min(1, (clientX - rect.left - cx_px) / orbitPx)) * 100)
       } else {
         const rad = (angleRef.current * Math.PI) / 180
         const dirX = Math.sin(rad)
         const dirY = -Math.cos(rad)
         const H = 0.5 * (Math.abs(Math.sin(rad)) + Math.abs(Math.cos(rad)))
-        const relX = (e.clientX - rect.left) / rect.width - 0.5
-        const relY = (e.clientY - rect.top) / rect.height - 0.5
+        const relX = (clientX - rect.left) / rect.width - 0.5
+        const relY = (clientY - rect.top) / rect.height - 0.5
         const proj = relX * dirX + relY * dirY
-        pos = Math.round(Math.max(0, Math.min(1, proj / (2 * H) + 0.5)) * 100)
+        return Math.round(Math.max(0, Math.min(1, proj / (2 * H) + 0.5)) * 100)
       }
-      dispatch({ type: 'MOVE_STOP', index: dragRef.current.index, position: Math.round(pos) })
+    }
+
+    function onMouseMove(e: MouseEvent) {
+      if (!dragRef.current) return
+      didDragRef.current = true
+      const bar = document.getElementById('gradient-bar')
+      if (!bar) return
+      const pos = posFromPoint(e.clientX, e.clientY, bar.getBoundingClientRect())
+      dispatch({ type: 'MOVE_STOP', index: dragRef.current.index, position: pos })
     }
     function onMouseUp() {
       dragRef.current = null
-      // Reset after click event fires (which comes after mouseup)
+      setTimeout(() => { didDragRef.current = false }, 0)
+    }
+    function onTouchMove(e: TouchEvent) {
+      if (!dragRef.current) return
+      didDragRef.current = true
+      const bar = document.getElementById('gradient-bar')
+      if (!bar) return
+      const t = e.touches[0]
+      const pos = posFromPoint(t.clientX, t.clientY, bar.getBoundingClientRect())
+      dispatch({ type: 'MOVE_STOP', index: dragRef.current.index, position: pos })
+    }
+    function onTouchEnd() {
+      dragRef.current = null
       setTimeout(() => { didDragRef.current = false }, 0)
     }
     window.addEventListener('mousemove', onMouseMove)
     window.addEventListener('mouseup', onMouseUp)
+    window.addEventListener('touchmove', onTouchMove, { passive: true })
+    window.addEventListener('touchend', onTouchEnd)
     return () => {
       window.removeEventListener('mousemove', onMouseMove)
       window.removeEventListener('mouseup', onMouseUp)
+      window.removeEventListener('touchmove', onTouchMove)
+      window.removeEventListener('touchend', onTouchEnd)
     }
   }, [])
 
@@ -493,7 +513,8 @@ export default function ColorApp() {
                 pos = Math.round((a / (2 * Math.PI)) * 100)
               } else if (gradientMode === 'radial') {
                 const cx_px = (radialCenterX / 100) * rect.width
-                pos = Math.round(Math.max(0, Math.min(1, (e.clientX - rect.left - cx_px) / ORBIT_PX)) * 100)
+                const orbitPx = rect.width * (ORBIT_PX / 260)
+                pos = Math.round(Math.max(0, Math.min(1, (e.clientX - rect.left - cx_px) / orbitPx)) * 100)
               } else {
                 const rad = (angle * Math.PI) / 180
                 const dirX = Math.sin(rad)
@@ -514,13 +535,11 @@ export default function ColorApp() {
                 // from angle in CSS: 0=top, 90=right. Convert to screen math (0=right).
                 const fromRad = (conicAngle * Math.PI) / 180 - Math.PI / 2
                 const a = fromRad + (stop.position / 100) * 2 * Math.PI
-                const r = 100 // px orbit radius inside 260px square
-                const cx = 130, cy = 130
-                handleStyle = { left: `${cx + r * Math.cos(a)}px`, top: `${cy + r * Math.sin(a)}px` }
+                const r = 38.46 // % of bar width
+                const cx = 50, cy = 50
+                handleStyle = { left: `${cx + r * Math.cos(a)}%`, top: `${cy + r * Math.sin(a)}%` }
               } else if (gradientMode === 'radial') {
-                const cx_px = (radialCenterX / 100) * 260
-                const cy_px = (radialCenterY / 100) * 260
-                handleStyle = { left: `${cx_px + (stop.position / 100) * ORBIT_PX}px`, top: `${cy_px}px` }
+                handleStyle = { left: `${radialCenterX + (stop.position / 100) * ORBIT_PCT}%`, top: `${radialCenterY}%` }
               } else {
                 const rad = (angle * Math.PI) / 180
                 const dirX = Math.sin(rad)
@@ -537,6 +556,11 @@ export default function ColorApp() {
                   className={[styles.stopHandle, selectedStop === i ? styles.stopSelected : ''].filter(Boolean).join(' ')}
                   style={handleStyle}
                   onMouseDown={(e) => {
+                    e.stopPropagation()
+                    dispatch({ type: 'SELECT_STOP', index: i })
+                    handleDragStart(i, e.currentTarget.parentElement!.offsetWidth)
+                  }}
+                  onTouchStart={(e) => {
                     e.stopPropagation()
                     dispatch({ type: 'SELECT_STOP', index: i })
                     handleDragStart(i, e.currentTarget.parentElement!.offsetWidth)
