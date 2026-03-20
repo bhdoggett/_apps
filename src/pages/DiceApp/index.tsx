@@ -137,25 +137,71 @@ function Histogram({
   )
 }
 
+const LS_KEY = 'diceApp'
+
+interface StoredState {
+  numDice: number
+  numSides: number
+  history: number[][]
+  lastDisplay: number[]
+}
+
+function loadStored(): StoredState | null {
+  try {
+    const raw = localStorage.getItem(LS_KEY)
+    return raw ? JSON.parse(raw) : null
+  } catch {
+    return null
+  }
+}
+
+function saveStored(state: StoredState) {
+  try {
+    localStorage.setItem(LS_KEY, JSON.stringify(state))
+  } catch { /* quota exceeded — silently ignore */ }
+}
+
 function randRolls(dice: number, sides: number) {
   return Array.from({ length: dice }, () => Math.floor(Math.random() * sides) + 1)
 }
 
 export default function DiceApp() {
-  const [numDice, setNumDice] = useState(2)
-  const [numSides, setNumSides] = useState(6)
-  const [display, setDisplay] = useState<number[]>([])
-  const [history, setHistory] = useState<number[][]>([])
+  const stored = loadStored()
+  const [numDice, setNumDice] = useState(stored?.numDice ?? 2)
+  const [numSides, setNumSides] = useState(stored?.numSides ?? 6)
+  const [display, setDisplay] = useState<number[]>(stored?.lastDisplay ?? [])
+  const [history, setHistory] = useState<number[][]>(stored?.history ?? [])
   const [rolling, setRolling] = useState(false)
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
-  const clearHistory = () => {
+  const persist = useCallback((
+    dice: number,
+    sides: number,
+    hist: number[][],
+    last: number[],
+  ) => {
+    saveStored({ numDice: dice, numSides: sides, history: hist, lastDisplay: last })
+  }, [])
+
+  const reset = () => {
+    localStorage.removeItem(LS_KEY)
     setHistory([])
     setDisplay([])
   }
 
-  const changeDice = (n: number) => { setNumDice(n); clearHistory() }
-  const changeSides = (n: number) => { setNumSides(n); clearHistory() }
+  const changeDice = (n: number) => {
+    setNumDice(n)
+    setHistory([])
+    setDisplay([])
+    saveStored({ numDice: n, numSides, history: [], lastDisplay: [] })
+  }
+
+  const changeSides = (n: number) => {
+    setNumSides(n)
+    setHistory([])
+    setDisplay([])
+    saveStored({ numDice, numSides: n, history: [], lastDisplay: [] })
+  }
 
   const roll = useCallback(() => {
     if (rolling) return
@@ -167,10 +213,14 @@ export default function DiceApp() {
       if (intervalRef.current) clearInterval(intervalRef.current)
       const results = randRolls(numDice, numSides)
       setDisplay(results)
-      setHistory(h => [...h, results])
+      setHistory(h => {
+        const next = [...h, results]
+        persist(numDice, numSides, next, results)
+        return next
+      })
       setRolling(false)
     }, 500)
-  }, [numDice, numSides, rolling])
+  }, [numDice, numSides, rolling, persist])
 
   // All individual die values across all rolls
   const allValues = history.flat()
@@ -253,8 +303,8 @@ export default function DiceApp() {
           {rolling ? 'rolling...' : 'roll'}
         </button>
         {hasHistory && (
-          <button className={styles.clearBtn} onClick={clearHistory}>
-            clear
+          <button className={styles.clearBtn} onClick={reset}>
+            reset
           </button>
         )}
       </div>
