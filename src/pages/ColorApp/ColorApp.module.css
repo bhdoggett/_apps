@@ -276,9 +276,54 @@
 
 .gradientBarWrap {
   display: flex;
+  align-items: center;
   justify-content: center;
+  gap: 0.6rem;
   flex-shrink: 0;
   padding-block: 1rem;
+}
+
+.opacitySlider {
+  -webkit-appearance: none;
+  appearance: none;
+  writing-mode: vertical-lr;
+  direction: rtl;
+  width: 20px;
+  height: 260px;
+  background: transparent;
+  cursor: pointer;
+  display: block;
+  touch-action: none;
+  flex-shrink: 0;
+  margin-right: 0.75rem;
+}
+
+.opacitySlider::-webkit-slider-runnable-track {
+  width: 1px;
+  background: var(--rule);
+}
+
+.opacitySlider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 20px;
+  height: 12px;
+  margin-left: -9.5px;
+  background: linear-gradient(to bottom, var(--dim), var(--fg));
+  cursor: pointer;
+}
+
+.opacitySlider::-moz-range-track {
+  width: 1px;
+  background: var(--rule);
+}
+
+.opacitySlider::-moz-range-thumb {
+  border: none;
+  border-radius: 0;
+  width: 20px;
+  height: 12px;
+  background: linear-gradient(to bottom, var(--dim), var(--fg));
+  cursor: pointer;
 }
 
 .gradientBar {
@@ -288,6 +333,63 @@
   cursor: crosshair;
   border-radius: 2px;
   flex-shrink: 0;
+  background-color: #ffffff;
+}
+
+.fullscreenBtn {
+  position: absolute;
+  bottom: 0.4rem;
+  right: 0.4rem;
+  z-index: 2;
+  background: rgba(0, 0, 0, 0.35);
+  border: none;
+  color: #fff;
+  width: 1.6rem;
+  height: 1.6rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  border-radius: 2px;
+  opacity: 0.6;
+  transition: opacity 0.15s;
+}
+
+.fullscreenBtn:hover {
+  opacity: 1;
+}
+
+.fullscreenOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  background-color: #ffffff;
+}
+
+.fullscreenClose {
+  position: fixed;
+  top: 1rem;
+  right: 1rem;
+  z-index: 10000;
+  background: rgba(0, 0, 0, 0.35);
+  border: none;
+  color: #fff;
+  font-family: var(--font-mono);
+  font-size: 1.4rem;
+  line-height: 1;
+  width: 2rem;
+  height: 2rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  border-radius: 2px;
+  opacity: 0.7;
+  transition: opacity 0.15s;
+}
+
+.fullscreenClose:hover {
+  opacity: 1;
 }
 
 .stopHandle {
@@ -397,6 +499,31 @@
   align-items: center;
 }
 
+.stopControls.dragging {
+  opacity: 0.35;
+}
+
+.stopControls.dragAbove {
+  box-shadow: 0 -2px 0 var(--fg);
+}
+
+.stopControls.dragBelow {
+  box-shadow: 0 2px 0 var(--fg);
+}
+
+.stopDragHandle {
+  color: var(--dim);
+  font-size: 0.8rem;
+  cursor: grab;
+  line-height: 1;
+  opacity: 0.4;
+  touch-action: none;
+}
+
+.stopControls:hover .stopDragHandle {
+  opacity: 1;
+}
+
 .colorInput {
   width: 2.2rem;
   height: 2.2rem;
@@ -422,6 +549,99 @@
     width: 162px;
     height: 162px;
   }
+
+  .opacitySlider {
+    height: 162px;
+  }
+}
+
+/* Layer tabs */
+.layerTabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  align-items: center;
+  margin-bottom: 1.2rem;
+}
+
+.layerTab {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  border: 1px solid var(--dim);
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 0.6rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  padding: 0.3rem 0.5rem;
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s;
+  background: none;
+}
+
+.layerTab:hover {
+  border-color: var(--muted);
+  color: var(--fg);
+}
+
+.layerTabActive {
+  border-color: var(--fg);
+  color: var(--fg);
+}
+
+.layerTabRemove {
+  background: none;
+  border: none;
+  color: inherit;
+  font-size: 0.9rem;
+  line-height: 1;
+  padding: 0 0 0 0.15rem;
+  cursor: pointer;
+  opacity: 0.5;
+  transition: opacity 0.15s;
+}
+
+.layerTabRemove:hover {
+  opacity: 1;
+}
+
+.layerOpacityInput {
+  background: none;
+  border: none;
+  color: inherit;
+  font-family: var(--font-mono);
+  font-size: 0.6rem;
+  letter-spacing: 0.05em;
+  width: 3.5ch;
+  padding: 0;
+  text-align: right;
+}
+
+.layerOpacityUnit {
+  font-family: var(--font-mono);
+  font-size: 0.6rem;
+  letter-spacing: 0.05em;
+  opacity: 0.5;
+}
+
+.layerTabEye {
+  background: none;
+  border: none;
+  color: inherit;
+  padding: 0 0.15rem 0 0;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  transition: opacity 0.15s;
+}
+
+.layerTabEye:hover {
+  opacity: 1 !important;
+}
+
+.layerTabEyeActive {
+  opacity: 1;
 }
 
 /* CSS output */

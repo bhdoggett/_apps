@@ -1,5 +1,6 @@
 import { useReducer, useRef, useEffect, useCallback, useState } from 'react'
 import AppHeader from '../../components/AppHeader'
+import DragNumber from '../../components/DragNumber'
 import { hexToRgb, rgbToHsl, rgbToCmyk } from './colorUtils'
 import styles from './ColorApp.module.css'
 
@@ -8,8 +9,24 @@ const ORBIT_PX = 110
 const ORBIT_PCT = (ORBIT_PX / 260) * 100  // ~42.3% — scales with bar size
 
 type PickedColor = { hex: string; r: number; g: number; b: number }
+type GradientStop = { id: number; color: string; position: number }
 
-type GradientStop = { color: string; position: number }
+let _nextStopId = 0
+const newStopId = () => ++_nextStopId
+
+type GradientGroup = {
+  stops: GradientStop[]
+  angle: number
+  conicAngle: number
+  gradientMode: 'linear' | 'conic' | 'radial' | 'solid'
+  radialShape: 'circle' | 'ellipse'
+  radialCenterX: number
+  radialCenterY: number
+  radialSizeX: number
+  radialSizeY: number
+  selectedStop: number | null
+  opacity: number
+}
 
 type State = {
   pickedColor: PickedColor | null
@@ -17,17 +34,9 @@ type State = {
   showCanvas: boolean
   error: string
   copying: string | null
-  // gradient
-  stops: GradientStop[]
-  angle: number
-  conicAngle: number
-  gradientMode: 'linear' | 'conic' | 'radial'
-  radialShape: 'circle' | 'ellipse'
-  radialCenterX: number
-  radialCenterY: number
-  radialSizeX: number
-  radialSizeY: number
-  selectedStop: number | null
+  groups: GradientGroup[]
+  activeGroup: number
+  soloGroup: number | null
   gradientCopied: boolean
   alpha: number
 }
@@ -39,14 +48,14 @@ type Action =
   | { type: 'CLEAR_IMAGE' }
   | { type: 'SET_COPYING'; key: string | null }
   | { type: 'ADD_STOP'; color: string; position: number }
-  | { type: 'MOVE_STOP'; index: number; position: number }
+  | { type: 'SWAP_STOP_COLORS'; idA: number; idB: number }
   | { type: 'SELECT_STOP'; index: number | null }
   | { type: 'UPDATE_STOP_COLOR'; index: number; color: string }
   | { type: 'UPDATE_STOP_POSITION'; index: number; position: number }
   | { type: 'REMOVE_STOP'; index: number }
   | { type: 'SET_ANGLE'; angle: number }
   | { type: 'SET_CONIC_ANGLE'; angle: number }
-  | { type: 'SET_GRADIENT_MODE'; mode: 'linear' | 'conic' | 'radial' }
+  | { type: 'SET_GRADIENT_MODE'; mode: 'linear' | 'conic' | 'radial' | 'solid' }
   | { type: 'SET_RADIAL_SHAPE'; shape: 'circle' | 'ellipse' }
   | { type: 'SET_RADIAL_CENTER_X'; value: number }
   | { type: 'SET_RADIAL_CENTER_Y'; value: number }
@@ -54,16 +63,17 @@ type Action =
   | { type: 'SET_RADIAL_SIZE_Y'; value: number }
   | { type: 'SET_GRADIENT_COPIED'; value: boolean }
   | { type: 'SET_ALPHA'; value: number }
+  | { type: 'REORDER_STOPS'; from: number; to: number; insertBefore: boolean }
+  | { type: 'ADD_GROUP' }
+  | { type: 'REMOVE_GROUP'; index: number }
+  | { type: 'SET_ACTIVE_GROUP'; index: number }
+  | { type: 'SET_SOLO_GROUP'; index: number | null }
+  | { type: 'SET_GROUP_OPACITY'; index: number; value: number }
 
-const initial: State = {
-  pickedColor: null,
-  uploadedImg: null,
-  showCanvas: false,
-  error: '',
-  copying: null,
+const defaultGroup: GradientGroup = {
   stops: [
-    { color: '#ff0000', position: 0 },
-    { color: '#0000ff', position: 100 },
+    { id: newStopId(), color: '#ff0000', position: 0 },
+    { id: newStopId(), color: '#0000ff', position: 100 },
   ],
   angle: 90,
   conicAngle: 0,
@@ -74,11 +84,31 @@ const initial: State = {
   radialSizeX: 50,
   radialSizeY: 50,
   selectedStop: null,
+  opacity: 100,
+}
+
+const initial: State = {
+  pickedColor: null,
+  uploadedImg: null,
+  showCanvas: false,
+  error: '',
+  copying: null,
+  groups: [{ ...defaultGroup }],
+  activeGroup: 0,
+  soloGroup: null,
   gradientCopied: false,
   alpha: 100,
 }
 
+function updateActiveGroup(state: State, updates: Partial<GradientGroup>): State {
+  const groups = state.groups.map((g, i) =>
+    i === state.activeGroup ? { ...g, ...updates } : g
+  )
+  return { ...state, groups }
+}
+
 function reducer(state: State, action: Action): State {
+  const ag = state.groups[state.activeGroup]
   switch (action.type) {
     case 'PICK_COLOR': {
       const { r, g, b } = hexToRgb(action.hex)
@@ -93,55 +123,108 @@ function reducer(state: State, action: Action): State {
     case 'SET_COPYING':
       return { ...state, copying: action.key }
     case 'ADD_STOP': {
-      const newStop = { color: action.color, position: action.position }
-      const stops = [...state.stops, newStop].sort((a, b) => a.position - b.position)
-      return { ...state, stops, selectedStop: stops.indexOf(newStop) }
+      const newStop = { id: newStopId(), color: action.color, position: action.position }
+      const stops = [...ag.stops, newStop].sort((a, b) => a.position - b.position)
+      return updateActiveGroup(state, { stops, selectedStop: stops.findIndex(s => s.id === newStop.id) })
     }
-    case 'MOVE_STOP': {
-      const stops = state.stops.map((s, i) =>
-        i === action.index ? { ...s, position: Math.max(0, Math.min(100, action.position)) } : s
+    case 'SWAP_STOP_COLORS': {
+      const colorA = ag.stops.find(s => s.id === action.idA)?.color
+      const colorB = ag.stops.find(s => s.id === action.idB)?.color
+      if (colorA === undefined || colorB === undefined) return state
+      const stops = ag.stops.map(s =>
+        s.id === action.idA ? { ...s, color: colorB }
+        : s.id === action.idB ? { ...s, color: colorA }
+        : s
       )
-      return { ...state, stops }
+      const newSelectedStop = stops.findIndex(s => s.id === action.idB)
+      return updateActiveGroup(state, { stops, selectedStop: newSelectedStop })
     }
     case 'SELECT_STOP':
-      return { ...state, selectedStop: action.index }
+      return updateActiveGroup(state, { selectedStop: action.index })
     case 'UPDATE_STOP_COLOR': {
-      const stops = state.stops.map((s, i) =>
+      const stops = ag.stops.map((s, i) =>
         i === action.index ? { ...s, color: action.color } : s
       )
-      return { ...state, stops }
+      return updateActiveGroup(state, { stops })
     }
     case 'UPDATE_STOP_POSITION': {
-      const stops = state.stops.map((s, i) =>
+      const stops = ag.stops.map((s, i) =>
         i === action.index ? { ...s, position: Math.max(0, Math.min(100, action.position)) } : s
       )
-      return { ...state, stops }
+      return updateActiveGroup(state, { stops })
     }
     case 'REMOVE_STOP': {
-      if (state.stops.length <= 2) return state
-      const stops = state.stops.filter((_, i) => i !== action.index)
-      return {
-        ...state,
+      if (ag.stops.length <= 2) return state
+      const stops = ag.stops.filter((_, i) => i !== action.index)
+      return updateActiveGroup(state, {
         stops,
-        selectedStop: state.selectedStop === action.index ? null : state.selectedStop,
-      }
+        selectedStop: ag.selectedStop === action.index ? null : ag.selectedStop,
+      })
     }
     case 'SET_ANGLE':
-      return { ...state, angle: Math.max(0, Math.min(360, action.angle)) }
+      return updateActiveGroup(state, { angle: Math.max(0, Math.min(360, action.angle)) })
     case 'SET_CONIC_ANGLE':
-      return { ...state, conicAngle: Math.max(0, Math.min(360, action.angle)) }
+      return updateActiveGroup(state, { conicAngle: Math.max(0, Math.min(360, action.angle)) })
     case 'SET_GRADIENT_MODE':
-      return { ...state, gradientMode: action.mode }
+      return updateActiveGroup(state, { gradientMode: action.mode })
     case 'SET_RADIAL_SHAPE':
-      return { ...state, radialShape: action.shape }
-    case 'SET_RADIAL_CENTER_X': return { ...state, radialCenterX: Math.max(0, Math.min(100, action.value)) }
-    case 'SET_RADIAL_CENTER_Y': return { ...state, radialCenterY: Math.max(0, Math.min(100, action.value)) }
-    case 'SET_RADIAL_SIZE_X':   return { ...state, radialSizeX: Math.max(1, Math.min(200, action.value)) }
-    case 'SET_RADIAL_SIZE_Y':   return { ...state, radialSizeY: Math.max(1, Math.min(200, action.value)) }
+      return updateActiveGroup(state, { radialShape: action.shape })
+    case 'SET_RADIAL_CENTER_X':
+      return updateActiveGroup(state, { radialCenterX: Math.max(0, Math.min(100, action.value)) })
+    case 'SET_RADIAL_CENTER_Y':
+      return updateActiveGroup(state, { radialCenterY: Math.max(0, Math.min(100, action.value)) })
+    case 'SET_RADIAL_SIZE_X':
+      return updateActiveGroup(state, { radialSizeX: Math.max(1, Math.min(200, action.value)) })
+    case 'SET_RADIAL_SIZE_Y':
+      return updateActiveGroup(state, { radialSizeY: Math.max(1, Math.min(200, action.value)) })
     case 'SET_GRADIENT_COPIED':
       return { ...state, gradientCopied: action.value }
     case 'SET_ALPHA':
       return { ...state, alpha: Math.max(0, Math.min(100, action.value)) }
+    case 'REORDER_STOPS': {
+      // Calculate the final destination index (same logic as before)
+      const tempArr = [...ag.stops]
+      tempArr.splice(action.from, 1)
+      const dstIdx = action.from < action.to ? action.to - 1 : action.to
+      const finalIdx = action.insertBefore ? dstIdx : dstIdx + 1
+      // Rotate only colors — positions stay fixed
+      const next = ag.stops.map(s => ({ ...s }))
+      const fromColor = next[action.from].color
+      if (action.from < finalIdx) {
+        for (let i = action.from; i < finalIdx; i++) next[i].color = next[i + 1].color
+      } else {
+        for (let i = action.from; i > finalIdx; i--) next[i].color = next[i - 1].color
+      }
+      next[finalIdx].color = fromColor
+      return updateActiveGroup(state, { stops: next })
+    }
+    case 'ADD_GROUP': {
+      const newGroup: GradientGroup = {
+        ...defaultGroup,
+        gradientMode: 'solid',
+        stops: [{ id: newStopId(), color: randomHex(), position: 0 }, { id: newStopId(), color: randomHex(), position: 100 }],
+        opacity: 100,
+      }
+      const groups = [...state.groups, newGroup]
+      return { ...state, groups, activeGroup: groups.length - 1 }
+    }
+    case 'REMOVE_GROUP': {
+      if (state.groups.length <= 1) return state
+      const groups = state.groups.filter((_, i) => i !== action.index)
+      const activeGroup = Math.min(state.activeGroup, groups.length - 1)
+      const soloGroup = state.soloGroup === action.index ? null : state.soloGroup !== null && state.soloGroup > action.index ? state.soloGroup - 1 : state.soloGroup
+      return { ...state, groups, activeGroup, soloGroup }
+    }
+    case 'SET_ACTIVE_GROUP':
+      return { ...state, activeGroup: action.index }
+    case 'SET_SOLO_GROUP':
+      return { ...state, soloGroup: action.index }
+    case 'SET_GROUP_OPACITY': {
+      const groups = state.groups.map((g, i) =>
+        i === action.index ? { ...g, opacity: Math.max(0, Math.min(100, action.value)) } : g
+      )
+      return { ...state, groups }
+    }
     default:
       return state
   }
@@ -151,40 +234,60 @@ function randomHex(): string {
   return '#' + Math.floor(Math.random() * 0xffffff).toString(16).padStart(6, '0')
 }
 
-function gradientCss(state: State): string {
-  const stopsStr = state.stops
-    .map((s) => `${s.color} ${s.position}%`)
-    .join(', ')
-  if (state.gradientMode === 'linear') {
-    return `linear-gradient(${state.angle}deg, ${stopsStr})`
+function groupGradientCss(group: GradientGroup): string {
+  if (group.gradientMode === 'solid') {
+    return group.stops[0]?.color ?? '#000000'
   }
-  if (state.gradientMode === 'radial') {
-    const { radialShape, radialCenterX, radialCenterY, radialSizeX, radialSizeY } = state
+  const stopsStr = [...group.stops].sort((a, b) => a.position - b.position).map((s) => `${s.color} ${s.position}%`).join(', ')
+  if (group.gradientMode === 'linear') {
+    return `linear-gradient(${group.angle}deg, ${stopsStr})`
+  }
+  if (group.gradientMode === 'radial') {
+    const { radialShape, radialCenterX, radialCenterY, radialSizeX, radialSizeY } = group
     const at = `at ${radialCenterX}% ${radialCenterY}%`
     if (radialShape === 'ellipse') {
       return `radial-gradient(ellipse ${radialSizeX}% ${radialSizeY}% ${at}, ${stopsStr})`
     }
     return `radial-gradient(circle ${at}, ${stopsStr})`
   }
-  return `conic-gradient(from ${state.conicAngle}deg, ${stopsStr})`
+  return `conic-gradient(from ${group.conicAngle}deg, ${stopsStr})`
+}
+
+function gradientCss(state: State): string {
+  if (state.groups.length === 1 && state.groups[0].opacity === 100) {
+    return groupGradientCss(state.groups[0])
+  }
+  return state.groups
+    .map((g, i) => {
+      const opacityLine = g.opacity < 100 ? `\n  opacity: ${(g.opacity / 100).toFixed(2)};` : ''
+      return `/* layer ${i + 1} */\nbackground: ${groupGradientCss(g)};${opacityLine}`
+    })
+    .join('\n\n')
 }
 
 export default function ColorApp() {
   const [state, dispatch] = useReducer(reducer, initial)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
-  const dragRef = useRef<{ index: number; barWidth: number } | null>(null)
+  const dragRef = useRef<{ currentHolderId: number } | null>(null)
+  const stopsRef = useRef(state.groups[state.activeGroup].stops)
   const didDragRef = useRef(false)
-  const gradientModeRef = useRef(state.gradientMode)
-  const angleRef = useRef(state.angle)
-  const radialCenterXRef = useRef(state.radialCenterX)
-  const radialCenterYRef = useRef(state.radialCenterY)
-  const [angleText, setAngleText] = useState(String(state.angle))
-  const [conicAngleText, setConicAngleText] = useState(String(state.conicAngle))
-  const [radialCenterXText, setRadialCenterXText] = useState(String(state.radialCenterX))
-  const [radialCenterYText, setRadialCenterYText] = useState(String(state.radialCenterY))
-  const [radialSizeXText, setRadialSizeXText] = useState(String(state.radialSizeX))
-  const [radialSizeYText, setRadialSizeYText] = useState(String(state.radialSizeY))
+  const stopsDragSrc = useRef<number | null>(null)
+  const stopsListRef = useRef<HTMLDivElement>(null)
+  const gradientModeRef = useRef(state.groups[state.activeGroup].gradientMode)
+  const angleRef = useRef(state.groups[state.activeGroup].angle)
+  const radialCenterXRef = useRef(state.groups[state.activeGroup].radialCenterX)
+
+  const ag = state.groups[state.activeGroup]
+  stopsRef.current = ag.stops
+
+  const [conicAngleText, setConicAngleText] = useState(String(ag.conicAngle))
+  const [fullscreen, setFullscreen] = useState(false)
+
+  // Sync conic angle text when switching active group (DragNumber handles the rest)
+  useEffect(() => {
+    setConicAngleText(String(state.groups[state.activeGroup].conicAngle))
+  }, [state.activeGroup]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Draw uploaded image onto canvas
   useEffect(() => {
@@ -194,7 +297,7 @@ export default function ColorApp() {
     canvas.width = img.naturalWidth
     canvas.height = img.naturalHeight
     canvas.getContext('2d')!.drawImage(img, 0, 0)
-  }, [state.uploadedImg, state.showCanvas])
+  }, [state.uploadedImg])
 
   async function pickColor() {
     try {
@@ -241,7 +344,7 @@ export default function ColorApp() {
 
   function addToGradient() {
     if (!state.pickedColor) return
-    const positions = state.stops.map((s) => s.position)
+    const positions = ag.stops.map((s) => s.position)
     const gaps: { pos: number; size: number }[] = []
     const sorted = [...positions].sort((a, b) => a - b)
     for (let i = 0; i < sorted.length - 1; i++) {
@@ -253,8 +356,8 @@ export default function ColorApp() {
 
   // Gradient handle drag
   const handleDragStart = useCallback(
-    (index: number, barWidth: number) => {
-      dragRef.current = { index, barWidth }
+    (id: number) => {
+      dragRef.current = { currentHolderId: id }
     },
     []
   )
@@ -285,13 +388,36 @@ export default function ColorApp() {
       }
     }
 
+    function checkCrossing(pos: number) {
+      if (!dragRef.current) return
+      const { currentHolderId } = dragRef.current
+      const sorted = [...stopsRef.current].sort((a, b) => a.position - b.position)
+      const holderIdx = sorted.findIndex(s => s.id === currentHolderId)
+      if (holderIdx === -1) return
+      if (holderIdx > 0) {
+        const neighbor = sorted[holderIdx - 1]
+        const mid = (neighbor.position + sorted[holderIdx].position) / 2
+        if (pos < mid) {
+          dragRef.current.currentHolderId = neighbor.id
+          dispatch({ type: 'SWAP_STOP_COLORS', idA: currentHolderId, idB: neighbor.id })
+        }
+      } else if (holderIdx < sorted.length - 1) {
+        const neighbor = sorted[holderIdx + 1]
+        const mid = (sorted[holderIdx].position + neighbor.position) / 2
+        if (pos > mid) {
+          dragRef.current.currentHolderId = neighbor.id
+          dispatch({ type: 'SWAP_STOP_COLORS', idA: currentHolderId, idB: neighbor.id })
+        }
+      }
+    }
+
     function onMouseMove(e: MouseEvent) {
       if (!dragRef.current) return
       didDragRef.current = true
       const bar = document.getElementById('gradient-bar')
       if (!bar) return
       const pos = posFromPoint(e.clientX, e.clientY, bar.getBoundingClientRect())
-      dispatch({ type: 'MOVE_STOP', index: dragRef.current.index, position: pos })
+      checkCrossing(pos)
     }
     function onMouseUp() {
       dragRef.current = null
@@ -304,7 +430,7 @@ export default function ColorApp() {
       if (!bar) return
       const t = e.touches[0]
       const pos = posFromPoint(t.clientX, t.clientY, bar.getBoundingClientRect())
-      dispatch({ type: 'MOVE_STOP', index: dragRef.current.index, position: pos })
+      checkCrossing(pos)
     }
     function onTouchEnd() {
       dragRef.current = null
@@ -322,12 +448,80 @@ export default function ColorApp() {
     }
   }, [])
 
-  const { pickedColor, stops, angle, conicAngle, gradientMode, radialShape, selectedStop,
-          radialCenterX, radialCenterY, radialSizeX, radialSizeY, alpha } = state
+  // Delete selected stop on Backspace/Delete key
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key !== 'Delete' && e.key !== 'Backspace') return
+      if (document.activeElement && document.activeElement !== document.body) return
+      const ag = state.groups[state.activeGroup]
+      if (ag.selectedStop !== null && ag.stops.length > 2) {
+        dispatch({ type: 'REMOVE_STOP', index: ag.selectedStop })
+      }
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [state.groups, state.activeGroup])
+
+  // Touch drag-to-reorder for stop controls
+  useEffect(() => {
+    const container = stopsListRef.current
+    if (!container) return
+    const handles = container.querySelectorAll<HTMLElement>(`.${styles.stopDragHandle}`)
+    const cleanups: (() => void)[] = []
+    handles.forEach((handle) => {
+      const el = handle.closest<HTMLElement>('[data-stopindex]')!
+      const onTouchStart = () => {
+        stopsDragSrc.current = Number(el.dataset.stopindex)
+        el.classList.add(styles.dragging)
+      }
+      const onTouchMove = (e: TouchEvent) => {
+        if (stopsDragSrc.current === null) return
+        e.preventDefault()
+        const touch = e.touches[0]
+        const target = document.elementFromPoint(touch.clientX, touch.clientY)?.closest<HTMLElement>('[data-stopindex]')
+        container.querySelectorAll('[data-stopindex]').forEach(el =>
+          el.classList.remove(styles.dragAbove, styles.dragBelow)
+        )
+        if (target && Number(target.dataset.stopindex) !== stopsDragSrc.current) {
+          const mid = target.getBoundingClientRect().top + target.getBoundingClientRect().height / 2
+          target.classList.toggle(styles.dragAbove, touch.clientY < mid)
+          target.classList.toggle(styles.dragBelow, touch.clientY >= mid)
+        }
+      }
+      const onTouchEnd = (e: TouchEvent) => {
+        if (stopsDragSrc.current === null) return
+        const touch = e.changedTouches[0]
+        const target = document.elementFromPoint(touch.clientX, touch.clientY)?.closest<HTMLElement>('[data-stopindex]')
+        container.querySelectorAll('[data-stopindex]').forEach(el =>
+          el.classList.remove(styles.dragging, styles.dragAbove, styles.dragBelow)
+        )
+        const srcIdx = stopsDragSrc.current
+        if (target && Number(target.dataset.stopindex) !== srcIdx) {
+          const rect = target.getBoundingClientRect()
+          const insertBefore = touch.clientY < rect.top + rect.height / 2
+          dispatch({ type: 'REORDER_STOPS', from: srcIdx, to: Number(target.dataset.stopindex), insertBefore })
+        }
+        stopsDragSrc.current = null
+      }
+      handle.addEventListener('touchstart', onTouchStart, { passive: true })
+      handle.addEventListener('touchmove', onTouchMove, { passive: false })
+      handle.addEventListener('touchend', onTouchEnd)
+      cleanups.push(() => {
+        handle.removeEventListener('touchstart', onTouchStart)
+        handle.removeEventListener('touchmove', onTouchMove)
+        handle.removeEventListener('touchend', onTouchEnd)
+      })
+    })
+    return () => cleanups.forEach(fn => fn())
+  }, [state.groups[state.activeGroup].stops.length])
+
+  const { stops, angle, conicAngle, gradientMode, radialShape, selectedStop,
+          radialCenterX, radialCenterY, radialSizeX, radialSizeY } = ag
+  const { pickedColor, alpha } = state
+
   gradientModeRef.current = gradientMode
   angleRef.current = gradientMode === 'conic' ? conicAngle : angle
   radialCenterXRef.current = radialCenterX
-  radialCenterYRef.current = radialCenterY
 
   let hsl = { h: 0, s: 0, l: 0 }
   let cmyk = { c: 0, m: 0, y: 0, k: 0 }
@@ -362,6 +556,7 @@ export default function ColorApp() {
     : []
 
   const gradCss = gradientCss(state)
+  const previewGroups = state.soloGroup !== null ? [state.groups[state.soloGroup]] : state.groups
 
   return (
     <div className={styles.app}>
@@ -458,6 +653,60 @@ export default function ColorApp() {
 
       {/* ── Phase 2: Gradient Builder ── */}
       <div className={styles.gradientSection}>
+
+        {/* Layer tabs */}
+        <div className={styles.layerTabs}>
+          {state.groups.map((_, i) => (
+            <div
+              key={i}
+              className={[styles.layerTab, state.activeGroup === i ? styles.layerTabActive : ''].filter(Boolean).join(' ')}
+              onClick={() => dispatch({ type: 'SET_ACTIVE_GROUP', index: i })}
+            >
+              <button
+                className={[styles.layerTabEye, state.soloGroup === i ? styles.layerTabEyeActive : ''].filter(Boolean).join(' ')}
+                title={state.soloGroup === i ? 'show all layers' : 'focus this layer'}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  dispatch({ type: 'SET_SOLO_GROUP', index: state.soloGroup === i ? null : i })
+                }}
+              >
+                {state.soloGroup === i ? (
+                  <svg viewBox="0 0 16 16" width="10" height="10" fill="currentColor">
+                    <path d="M8 3C4.5 3 1.5 5.5 0 8c1.5 2.5 4.5 5 8 5s6.5-2.5 8-5c-1.5-2.5-4.5-5-8-5zm0 8a3 3 0 1 1 0-6 3 3 0 0 1 0 6z"/>
+                  </svg>
+                ) : (
+                  <svg viewBox="0 0 16 16" width="10" height="10" fill="currentColor" opacity="0.4">
+                    <path d="M8 3C4.5 3 1.5 5.5 0 8c1.5 2.5 4.5 5 8 5s6.5-2.5 8-5c-1.5-2.5-4.5-5-8-5zm0 8a3 3 0 1 1 0-6 3 3 0 0 1 0 6z"/>
+                  </svg>
+                )}
+              </button>
+              <span>layer {i + 1}</span>
+              <DragNumber
+                value={state.groups[i].opacity}
+                min={0}
+                max={100}
+                className={styles.layerOpacityInput}
+                onChange={(v) => dispatch({ type: 'SET_GROUP_OPACITY', index: i, value: v })}
+              />
+              <span className={styles.layerOpacityUnit}>%</span>
+              {state.groups.length > 1 && (
+                <button
+                  className={styles.layerTabRemove}
+                  onClick={(e) => { e.stopPropagation(); dispatch({ type: 'REMOVE_GROUP', index: i }) }}
+                >
+                  ×
+                </button>
+              )}
+            </div>
+          ))}
+          <button
+            className={styles.uploadLink}
+            onClick={() => dispatch({ type: 'ADD_GROUP' })}
+          >
+            + layer
+          </button>
+        </div>
+
         <div className={styles.gradientHeader}>
           <span className={styles.sectionLabel}>gradient</span>
           <div className={styles.gradientModeGroup}>
@@ -465,7 +714,7 @@ export default function ColorApp() {
             <button
               key={m}
               className={[styles.transformBtn, gradientMode === m ? styles.selected : ''].filter(Boolean).join(' ')}
-              onClick={() => dispatch({ type: 'SET_GRADIENT_MODE', mode: m })}
+              onClick={() => dispatch({ type: 'SET_GRADIENT_MODE', mode: gradientMode === m ? 'solid' : m })}
             >
               {m}
             </button>
@@ -473,20 +722,13 @@ export default function ColorApp() {
           {gradientMode === 'linear' && (
             <label className={styles.angleLabel}>
               <span className={styles.formatLabel}>angle</span>
-              <input
-                type="number"
+              <DragNumber
+                value={angle}
                 min={0}
                 max={360}
-                value={angleText}
+                pixelsPerUnit={1}
                 className={styles.angleInput}
-                onChange={(e) => {
-                  setAngleText(e.target.value)
-                  const n = Number(e.target.value)
-                  if (e.target.value !== '' && !isNaN(n)) {
-                    dispatch({ type: 'SET_ANGLE', angle: n })
-                  }
-                }}
-                onBlur={() => setAngleText(String(angle))}
+                onChange={(v) => dispatch({ type: 'SET_ANGLE', angle: v })}
               />
             </label>
           )}
@@ -529,12 +771,21 @@ export default function ColorApp() {
         {/* Live gradient bar */}
         <div className={styles.gradientBarRow}>
         <div className={styles.gradientBarWrap}>
+          <input
+            type="range"
+            min={0}
+            max={100}
+            value={ag.opacity}
+            className={styles.opacitySlider}
+            title="layer opacity"
+            onChange={(e) => dispatch({ type: 'SET_GROUP_OPACITY', index: state.activeGroup, value: Number(e.target.value) })}
+          />
           <div
             id="gradient-bar"
             className={styles.gradientBar}
-            style={{ background: gradCss }}
+            style={{}}
             onClick={(e) => {
-              if (didDragRef.current) return
+              if (didDragRef.current || gradientMode === 'solid') return
               const rect = e.currentTarget.getBoundingClientRect()
               let pos: number
               if (gradientMode === 'conic') {
@@ -563,13 +814,25 @@ export default function ColorApp() {
               dispatch({ type: 'ADD_STOP', color, position: pos })
             }}
           >
-            {stops.map((stop, i) => {
+            {previewGroups.map((g, li) => (
+              <div
+                key={li}
+                style={{
+                  position: 'absolute',
+                  inset: 0,
+                  background: groupGradientCss(g),
+                  opacity: g.opacity / 100,
+                  borderRadius: 'inherit',
+                  pointerEvents: 'none',
+                }}
+              />
+            ))}
+            {gradientMode !== 'solid' && stops.map((stop, i) => {
               let handleStyle: React.CSSProperties
               if (gradientMode === 'conic') {
-                // from angle in CSS: 0=top, 90=right. Convert to screen math (0=right).
                 const fromRad = (conicAngle * Math.PI) / 180 - Math.PI / 2
                 const a = fromRad + (stop.position / 100) * 2 * Math.PI
-                const r = 38.46 // % of bar width
+                const r = 38.46
                 const cx = 50, cy = 50
                 handleStyle = { left: `${cx + r * Math.cos(a)}%`, top: `${cy + r * Math.sin(a)}%` }
               } else if (gradientMode === 'radial') {
@@ -593,56 +856,49 @@ export default function ColorApp() {
                   onMouseDown={(e) => {
                     e.stopPropagation()
                     dispatch({ type: 'SELECT_STOP', index: i })
-                    handleDragStart(i, e.currentTarget.parentElement!.offsetWidth)
+                    handleDragStart(stop.id)
                   }}
                   onTouchStart={(e) => {
                     e.stopPropagation()
                     dispatch({ type: 'SELECT_STOP', index: i })
-                    handleDragStart(i, e.currentTarget.parentElement!.offsetWidth)
+                    handleDragStart(stop.id)
                   }}
                   onClick={(e) => e.stopPropagation()}
                 />
               )
             })}
+            <button
+              className={styles.fullscreenBtn}
+              onClick={(e) => { e.stopPropagation(); setFullscreen(true) }}
+              title="Fullscreen"
+            >
+              <svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor">
+                <path d="M1 1h5v1H2v4H1V1zm9 0h5v5h-1V2h-4V1zM1 10h1v4h4v1H1v-5zm14 0v5h-5v-1h4v-4h1z"/>
+              </svg>
+            </button>
           </div>
         </div>
         {gradientMode === 'radial' && (
           <div className={styles.radialControls}>
             <label className={styles.angleLabel}>
               <span className={styles.formatLabel}>center x</span>
-              <input
-                type="number"
+              <DragNumber
+                value={radialCenterX}
                 min={0}
                 max={100}
-                value={radialCenterXText}
                 className={styles.angleInput}
-                onChange={(e) => {
-                  setRadialCenterXText(e.target.value)
-                  const n = Number(e.target.value)
-                  if (e.target.value !== '' && !isNaN(n)) {
-                    dispatch({ type: 'SET_RADIAL_CENTER_X', value: n })
-                  }
-                }}
-                onBlur={() => setRadialCenterXText(String(radialCenterX))}
+                onChange={(v) => dispatch({ type: 'SET_RADIAL_CENTER_X', value: v })}
               />
               <span className={styles.formatLabel}>%</span>
             </label>
             <label className={styles.angleLabel}>
               <span className={styles.formatLabel}>center y</span>
-              <input
-                type="number"
+              <DragNumber
+                value={radialCenterY}
                 min={0}
                 max={100}
-                value={radialCenterYText}
                 className={styles.angleInput}
-                onChange={(e) => {
-                  setRadialCenterYText(e.target.value)
-                  const n = Number(e.target.value)
-                  if (e.target.value !== '' && !isNaN(n)) {
-                    dispatch({ type: 'SET_RADIAL_CENTER_Y', value: n })
-                  }
-                }}
-                onBlur={() => setRadialCenterYText(String(radialCenterY))}
+                onChange={(v) => dispatch({ type: 'SET_RADIAL_CENTER_Y', value: v })}
               />
               <span className={styles.formatLabel}>%</span>
             </label>
@@ -650,39 +906,25 @@ export default function ColorApp() {
               <>
                 <label className={styles.angleLabel}>
                   <span className={styles.formatLabel}>size x</span>
-                  <input
-                    type="number"
+                  <DragNumber
+                    value={radialSizeX}
                     min={1}
                     max={200}
-                    value={radialSizeXText}
+                    pixelsPerUnit={1}
                     className={styles.angleInput}
-                    onChange={(e) => {
-                      setRadialSizeXText(e.target.value)
-                      const n = Number(e.target.value)
-                      if (e.target.value !== '' && !isNaN(n)) {
-                        dispatch({ type: 'SET_RADIAL_SIZE_X', value: n })
-                      }
-                    }}
-                    onBlur={() => setRadialSizeXText(String(radialSizeX))}
+                    onChange={(v) => dispatch({ type: 'SET_RADIAL_SIZE_X', value: v })}
                   />
                   <span className={styles.formatLabel}>%</span>
                 </label>
                 <label className={styles.angleLabel}>
                   <span className={styles.formatLabel}>size y</span>
-                  <input
-                    type="number"
+                  <DragNumber
+                    value={radialSizeY}
                     min={1}
                     max={200}
-                    value={radialSizeYText}
+                    pixelsPerUnit={1}
                     className={styles.angleInput}
-                    onChange={(e) => {
-                      setRadialSizeYText(e.target.value)
-                      const n = Number(e.target.value)
-                      if (e.target.value !== '' && !isNaN(n)) {
-                        dispatch({ type: 'SET_RADIAL_SIZE_Y', value: n })
-                      }
-                    }}
-                    onBlur={() => setRadialSizeYText(String(radialSizeY))}
+                    onChange={(v) => dispatch({ type: 'SET_RADIAL_SIZE_Y', value: v })}
                   />
                   <span className={styles.formatLabel}>%</span>
                 </label>
@@ -692,10 +934,63 @@ export default function ColorApp() {
         )}
         </div>
 
-        <div className={styles.gradientControls}>
+        <div className={styles.gradientControls} ref={stopsListRef}>
+          {/* Solid color control */}
+          {gradientMode === 'solid' && (
+            <div className={styles.stopControls}>
+              <span className={styles.formatLabel}>color</span>
+              <input
+                type="color"
+                value={stops[0].color}
+                className={styles.colorInput}
+                onChange={(e) =>
+                  dispatch({ type: 'UPDATE_STOP_COLOR', index: 0, color: e.target.value })
+                }
+              />
+            </div>
+          )}
           {/* Stop controls */}
-          {stops.map((stop, i) => (
-            <div key={i} className={styles.stopControls}>
+          {gradientMode !== 'solid' && stops.map((stop, i) => (
+            <div
+              key={i}
+              className={styles.stopControls}
+              data-stopindex={i}
+              onDragEnd={() => {
+                stopsDragSrc.current = null
+                stopsListRef.current?.querySelectorAll('[data-stopindex]').forEach(el =>
+                  el.classList.remove(styles.dragging, styles.dragAbove, styles.dragBelow)
+                )
+              }}
+              onDragOver={(e) => {
+                if (stopsDragSrc.current === null || stopsDragSrc.current === i) return
+                e.preventDefault()
+                const rect = e.currentTarget.getBoundingClientRect()
+                const mid = rect.top + rect.height / 2
+                e.currentTarget.classList.toggle(styles.dragAbove, e.clientY < mid)
+                e.currentTarget.classList.toggle(styles.dragBelow, e.clientY >= mid)
+              }}
+              onDragLeave={(e) => e.currentTarget.classList.remove(styles.dragAbove, styles.dragBelow)}
+              onDrop={(e) => {
+                e.preventDefault()
+                if (stopsDragSrc.current === null || stopsDragSrc.current === i) return
+                const rect = e.currentTarget.getBoundingClientRect()
+                const insertBefore = e.clientY < rect.top + rect.height / 2
+                dispatch({ type: 'REORDER_STOPS', from: stopsDragSrc.current, to: i, insertBefore })
+                e.currentTarget.classList.remove(styles.dragAbove, styles.dragBelow)
+              }}
+            >
+              <span
+                className={styles.stopDragHandle}
+                aria-hidden
+                draggable
+                onDragStart={(e) => {
+                  e.stopPropagation()
+                  stopsDragSrc.current = i
+                  e.dataTransfer.effectAllowed = 'move'
+                  const row = e.currentTarget.closest<HTMLElement>('[data-stopindex]')
+                  if (row) setTimeout(() => row.classList.add(styles.dragging), 0)
+                }}
+              >⠿</span>
               <span className={styles.formatLabel}>stop {i + 1}</span>
               <input
                 type="color"
@@ -705,16 +1000,15 @@ export default function ColorApp() {
                   dispatch({ type: 'UPDATE_STOP_COLOR', index: i, color: e.target.value })
                 }
               />
-              <input
-                type="number"
-                min={0}
-                max={100}
-                value={stop.position}
-                className={styles.angleInput}
-                onChange={(e) =>
-                  dispatch({ type: 'UPDATE_STOP_POSITION', index: i, position: Number(e.target.value) })
-                }
-              />
+              <span onDragStart={(e) => e.stopPropagation()} onMouseDown={(e) => e.stopPropagation()} onPointerDown={(e) => e.stopPropagation()}>
+                <DragNumber
+                  value={stop.position}
+                  min={0}
+                  max={100}
+                  className={styles.angleInput}
+                  onChange={(v) => dispatch({ type: 'UPDATE_STOP_POSITION', index: i, position: v })}
+                />
+              </span>
               <span className={styles.formatLabel}>%</span>
               <button
                 className={styles.transformBtn}
@@ -726,7 +1020,7 @@ export default function ColorApp() {
             </div>
           ))}
 
-          <div className={styles.addStopRow}>
+          {gradientMode !== 'solid' && <div className={styles.addStopRow}>
             <button
               className={styles.uploadLink}
               onClick={() => {
@@ -742,7 +1036,7 @@ export default function ColorApp() {
             >
               + add stop
             </button>
-          </div>
+          </div>}
         </div>
 
         {/* CSS output */}
@@ -758,6 +1052,23 @@ export default function ColorApp() {
           {state.gradientCopied ? 'copied' : gradCss}
         </pre>
       </div>
+
+      {fullscreen && (
+        <div className={styles.fullscreenOverlay}>
+          {previewGroups.map((g, li) => (
+            <div
+              key={li}
+              style={{
+                position: 'absolute',
+                inset: 0,
+                background: groupGradientCss(g),
+                opacity: g.opacity / 100,
+              }}
+            />
+          ))}
+          <button className={styles.fullscreenClose} onClick={() => setFullscreen(false)}>×</button>
+        </div>
+      )}
     </div>
   )
 }
