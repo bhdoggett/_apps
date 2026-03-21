@@ -144,6 +144,7 @@
   background: transparent;
   cursor: pointer;
   display: block;
+  touch-action: none;
 }
 
 .alphaSlider::-webkit-slider-runnable-track {
@@ -301,6 +302,7 @@
   box-shadow: none;
   cursor: grab;
   z-index: 1;
+  touch-action: none;
 }
 
 .stopHandle:active {
