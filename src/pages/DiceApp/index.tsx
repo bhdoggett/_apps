@@ -196,7 +196,7 @@ export default function DiceApp() {
   }
 
   const changeDice = (n: number) => {
-    const clamped = Math.max(1, Math.min(20, n))
+    const clamped = Math.max(1, Math.min(99, n))
     setNumDice(clamped)
     setDiceText(String(clamped))
     setHistory([])
@@ -205,7 +205,7 @@ export default function DiceApp() {
   }
 
   const changeSides = (n: number) => {
-    const clamped = Math.max(2, n)
+    const clamped = Math.max(2, Math.min(99, n))
     setNumSides(clamped)
     setSidesText(String(clamped))
     setHistory([])
