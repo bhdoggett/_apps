@@ -398,6 +398,7 @@ export default function DiceApp() {
             <div className={styles.statsBlock}>
               <div className={styles.rule} />
               {([
+                ['rolls', history.length],
                 ['mean total', totalStatsData.mean],
                 ['total std dev', totalStatsData.stdDev],
                 ['best roll', totalStatsData.max],

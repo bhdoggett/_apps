@@ -46,6 +46,7 @@ function getElapsed(state: TimerState): number {
 
 export default function TimerApp() {
   const [timer, setTimer] = useState<TimerState>(idle)
+  const [laps, setLaps] = useState<number[]>([])
   const [, setTick] = useState(0)
   const notifiedRef = useRef(false)
 
@@ -114,6 +115,10 @@ export default function TimerApp() {
     }))
   }
 
+  function lap() {
+    setLaps(prev => [...prev, getElapsed(timer)])
+  }
+
   function reset() {
     setTimer({
       mode: 'paused',
@@ -122,21 +127,30 @@ export default function TimerApp() {
       startedAt: Date.now(),
       accumulatedMs: 0,
     })
+    setLaps([])
   }
 
   function dismiss() {
     setTimer(idle)
+    setLaps([])
   }
 
   if (timer.mode !== 'idle') {
     const elapsed = getElapsed(timer)
     const isDone = timer.mode === 'done'
-    const displayMs = timer.type === 'countdown' ? timer.totalMs - elapsed : elapsed
+
+    const lapOffset = laps.length > 0 ? laps[laps.length - 1] : 0
+    const currentLapMs = elapsed - lapOffset
+    const displayMs = timer.type === 'countdown' ? timer.totalMs - elapsed : currentLapMs
     const timeStr = isDone ? '00:00' : formatTime(displayMs, timer.type === 'stopwatch')
 
     const label = timer.type === 'countdown'
       ? (isDone ? 'done' : `${timer.totalMs / 60000} min`)
       : 'stopwatch'
+
+    const splits = laps.map((ms, i) => i === 0 ? ms : ms - laps[i - 1])
+    const best = splits.length > 1 ? Math.min(...splits) : null
+    const worst = splits.length > 1 ? Math.max(...splits) : null
 
     return (
       <div className={styles.overlay}>
@@ -148,6 +162,11 @@ export default function TimerApp() {
           <div className={`${styles.timeDisplay}${isDone ? ` ${styles.done}` : ''}`}>
             {timeStr}
           </div>
+          {laps.length > 0 && (
+            <div className={styles.totalTime}>
+              {formatTime(elapsed, true)}
+            </div>
+          )}
           {!isDone && (
             <div className={styles.controlRow}>
               <button
@@ -156,11 +175,47 @@ export default function TimerApp() {
               >
                 {timer.mode === 'running' ? 'pause' : 'resume'}
               </button>
+              {label === 'stopwatch' && timer.mode === 'running' && (
+                <button className={styles.controlBtn} onClick={lap}>
+                  lap
+                </button>
+              )}
               {label === 'stopwatch' && (
                 <button className={styles.controlBtn} onClick={reset}>
                   reset
                 </button>
               )}
+            </div>
+          )}
+
+          {laps.length > 0 && (
+            <div className={styles.lapsSection}>
+              {splits.length > 1 && (
+                <div className={styles.lapStats}>
+                  <span>avg {formatTime(laps[laps.length - 1] / laps.length, true)}</span>
+                  <span>best {formatTime(best!, true)}</span>
+                  <span>worst {formatTime(worst!, true)}</span>
+                </div>
+              )}
+              <div className={styles.lapsList}>
+                {[...splits].reverse().map((split, ri) => {
+                  const i = splits.length - 1 - ri
+                  const isBest = best !== null && split === best
+                  const isWorst = worst !== null && split === worst
+                  return (
+                    <div key={i} className={styles.lapRow}>
+                      <span className={styles.lapNum}>lap {i + 1}</span>
+                      <span className={[
+                        styles.lapTime,
+                        isBest ? styles.lapBest : '',
+                        isWorst ? styles.lapWorst : '',
+                      ].filter(Boolean).join(' ')}>
+                        {formatTime(split, true)}
+                      </span>
+                    </div>
+                  )
+                })}
+              </div>
             </div>
           )}
         </div>
