@@ -12,9 +12,15 @@
 }
 
 .stats {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  display: flex;
+  justify-content: space-evenly;
   margin-bottom: 0.6rem;
+}
+
+.statsSecondary {
+  display: flex;
+  justify-content: space-evenly;
+margin-bottom: 4rem;
 }
 
 .stat {
@@ -42,10 +48,6 @@
   color: var(--muted);
 }
 
-.editorWrap {
-  flex: 1;
-  margin-bottom: 1.2rem;
-}
 
 .editor {
   width: 100%;

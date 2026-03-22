@@ -16,10 +16,16 @@ export default function TextApp() {
   const [status, setStatus] = useState("");
   const editorRef = useRef<HTMLTextAreaElement>(null);
 
-  const words = text.trim() === "" ? 0 : text.trim().split(/\s+/).length;
+  const wordList = text.trim() === "" ? [] : text.trim().split(/\s+/);
+  const words = wordList.length;
   const chars = text.length;
   const readAloud = formatTime(words / 130);
-  const readSilent = formatTime(words / 238);
+  const sentences = words === 0 ? 0 : (text.match(/[^.!?]*[.!?]+/g) ?? [text]).length;
+  // Split on em-dash/en-dash before finding longest word
+  const tokens = wordList.flatMap(w => w.split(/[\u2014\u2013\-\/|]/));
+  const uniqueWords = words === 0 ? 0 : new Set(wordList.map(w => w.toLowerCase().replace(/[^a-z']/g, ""))).size;
+  const longestWord = words === 0 ? "—" : tokens.reduce((a, b) => b.length > a.length ? b : a);
+  const avgWordLen = words === 0 ? "—" : (wordList.reduce((sum, w) => sum + w.length, 0) / words).toFixed(1);
 
   function handlePaste(e: React.ClipboardEvent<HTMLTextAreaElement>) {
     e.preventDefault();
@@ -62,16 +68,14 @@ export default function TextApp() {
           <span className={styles.statLabel}>chars</span>
         </div>
         <div className={styles.stat}>
+          <span className={styles.statValue}>{words === 0 ? "—" : sentences}</span>
+          <span className={styles.statLabel}>sentences</span>
+        </div>
+        <div className={styles.stat}>
           <span className={styles.statValue}>
             {words === 0 ? "—" : readAloud}
           </span>
           <span className={styles.statLabel}>read aloud</span>
-        </div>
-        <div className={styles.stat}>
-          <span className={styles.statValue}>
-            {words === 0 ? "—" : readSilent}
-          </span>
-          <span className={styles.statLabel}>reading</span>
         </div>
       </div>
       <div className={styles.editorWrap}>
@@ -83,6 +87,20 @@ export default function TextApp() {
           onPaste={handlePaste}
           placeholder="paste or type text here…"
         />
+      </div>
+      <div className={styles.statsSecondary}>
+        <div className={styles.stat}>
+          <span className={styles.statValue}>{words === 0 ? "—" : uniqueWords}</span>
+          <span className={styles.statLabel}>unique words</span>
+        </div>
+        <div className={styles.stat}>
+          <span className={styles.statValue}>{longestWord}</span>
+          <span className={styles.statLabel}>longest word</span>
+        </div>
+        <div className={styles.stat}>
+          <span className={styles.statValue}>{avgWordLen}</span>
+          <span className={styles.statLabel}>avg word len</span>
+        </div>
       </div>
       <div className={styles.actions}>
         <ActionButton onClick={handleCopy}>copy</ActionButton>
