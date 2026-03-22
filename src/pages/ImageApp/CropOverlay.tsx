@@ -15,8 +15,102 @@ type Props = {
   imgRef: RefObject<HTMLImageElement | null>
   naturalWidth: number
   naturalHeight: number
+  rotation: number
+  flipH: boolean
+  flipV: boolean
   initialRegion: CropRegion | null
   onCrop: (region: CropRegion) => void
+}
+
+// For 90°/270° rotations the canvas is sized to the visual dims (H×W), so the
+// "layout" dims used for scaling differ from the canvas dims. Derive them here.
+function layoutDims(W: number, H: number, rotation: number): { WL: number; HL: number } {
+  return rotation === 90 || rotation === 270
+    ? { WL: H, HL: W }
+    : { WL: W, HL: H }
+}
+
+// Forward: natural image pixel → canvas display position
+function naturalToCanvas(
+  nx: number, ny: number,
+  W: number, H: number,
+  natW: number, natH: number,
+  rotation: number, flipH: boolean, flipV: boolean,
+): { x: number; y: number } {
+  const { WL, HL } = layoutDims(W, H, rotation)
+  let dx = nx * WL / natW - WL / 2
+  let dy = ny * HL / natH - HL / 2
+  let rdx: number, rdy: number
+  switch (rotation) {
+    case 90:  rdx = -dy; rdy =  dx; break
+    case 180: rdx = -dx; rdy = -dy; break
+    case 270: rdx =  dy; rdy = -dx; break
+    default:  rdx =  dx; rdy =  dy
+  }
+  if (flipH) rdx = -rdx
+  if (flipV) rdy = -rdy
+  return { x: W / 2 + rdx, y: H / 2 + rdy }
+}
+
+// Inverse: canvas display position → natural image pixel
+function canvasToNatural(
+  cx: number, cy: number,
+  W: number, H: number,
+  natW: number, natH: number,
+  rotation: number, flipH: boolean, flipV: boolean,
+): { x: number; y: number } {
+  const { WL, HL } = layoutDims(W, H, rotation)
+  let dx = cx - W / 2
+  let dy = cy - H / 2
+  if (flipV) dy = -dy
+  if (flipH) dx = -dx
+  let ndx: number, ndy: number
+  switch (rotation) {
+    case 90:  ndx =  dy; ndy = -dx; break
+    case 180: ndx = -dx; ndy = -dy; break
+    case 270: ndx = -dy; ndy =  dx; break
+    default:  ndx =  dx; ndy =  dy
+  }
+  return { x: (WL / 2 + ndx) * natW / WL, y: (HL / 2 + ndy) * natH / HL }
+}
+
+function canvasBoxToNatural(
+  box: Box, W: number, H: number, natW: number, natH: number,
+  rotation: number, flipH: boolean, flipV: boolean,
+): CropRegion {
+  const pts = [
+    canvasToNatural(box.x,         box.y,         W, H, natW, natH, rotation, flipH, flipV),
+    canvasToNatural(box.x + box.w, box.y,         W, H, natW, natH, rotation, flipH, flipV),
+    canvasToNatural(box.x,         box.y + box.h, W, H, natW, natH, rotation, flipH, flipV),
+    canvasToNatural(box.x + box.w, box.y + box.h, W, H, natW, natH, rotation, flipH, flipV),
+  ]
+  const xs = pts.map(p => p.x)
+  const ys = pts.map(p => p.y)
+  const x = Math.min(...xs)
+  const y = Math.min(...ys)
+  return {
+    x: Math.round(x),
+    y: Math.round(y),
+    w: Math.round(Math.max(...xs) - x),
+    h: Math.round(Math.max(...ys) - y),
+  }
+}
+
+function naturalBoxToCanvas(
+  region: CropRegion, W: number, H: number, natW: number, natH: number,
+  rotation: number, flipH: boolean, flipV: boolean,
+): Box {
+  const pts = [
+    naturalToCanvas(region.x,            region.y,            W, H, natW, natH, rotation, flipH, flipV),
+    naturalToCanvas(region.x + region.w, region.y,            W, H, natW, natH, rotation, flipH, flipV),
+    naturalToCanvas(region.x,            region.y + region.h, W, H, natW, natH, rotation, flipH, flipV),
+    naturalToCanvas(region.x + region.w, region.y + region.h, W, H, natW, natH, rotation, flipH, flipV),
+  ]
+  const xs = pts.map(p => p.x)
+  const ys = pts.map(p => p.y)
+  const x = Math.min(...xs)
+  const y = Math.min(...ys)
+  return { x, y, w: Math.max(...xs) - x, h: Math.max(...ys) - y }
 }
 
 const HANDLE_SIZE = 8
@@ -64,11 +158,12 @@ const HANDLE_CURSOR: Record<Handle, string> = {
   sw: 'sw-resize', w: 'ew-resize',
 }
 
-export default function CropOverlay({ imgRef, naturalWidth, naturalHeight, initialRegion, onCrop }: Props) {
+export default function CropOverlay({ imgRef, naturalWidth, naturalHeight, rotation, flipH, flipV, initialRegion, onCrop }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const boxRef = useRef<Box | null>(null)
   const dragRef = useRef<DragMode>(null)
   const canvasSizeRef = useRef({ w: 0, h: 0 })
+  const prevRotationRef = useRef(rotation)
 
   function draw() {
     const canvas = canvasRef.current
@@ -81,20 +176,24 @@ export default function CropOverlay({ imgRef, naturalWidth, naturalHeight, initi
     ctx.fillStyle = 'rgba(0,0,0,0.62)'
     ctx.fillRect(0, 0, canvas.width, canvas.height)
     ctx.clearRect(box.x, box.y, box.w, box.h)
-
   }
 
-  // Sync canvas size; scale boxRef proportionally on resize
+  // Sync canvas size and position to cover the full visual image area.
+  // For 90°/270° rotations the visual image is H×W, so we swap dims and offset.
   useEffect(() => {
     const img = imgRef.current
     if (!img) return
 
     function syncSize() {
       if (!canvasRef.current || !img) return
-      const newW = img.clientWidth
-      const newH = img.clientHeight
+      const swapped = rotation === 90 || rotation === 270
+      const newW = swapped ? img.clientHeight : img.clientWidth
+      const newH = swapped ? img.clientWidth : img.clientHeight
       const { w: oldW, h: oldH } = canvasSizeRef.current
-      if (oldW > 0 && oldH > 0 && boxRef.current) {
+      const rotationChanged = prevRotationRef.current !== rotation
+      prevRotationRef.current = rotation
+
+      if (!rotationChanged && oldW > 0 && oldH > 0 && boxRef.current) {
         const b = boxRef.current
         boxRef.current = {
           x: b.x * newW / oldW,
@@ -103,8 +202,12 @@ export default function CropOverlay({ imgRef, naturalWidth, naturalHeight, initi
           h: b.h * newH / oldH,
         }
       }
+
       canvasRef.current.width = newW
       canvasRef.current.height = newH
+      // Offset canvas so it's centered over the visual image (which may overflow the layout box)
+      canvasRef.current.style.left = swapped ? `${(img.clientWidth - img.clientHeight) / 2}px` : '0'
+      canvasRef.current.style.top  = swapped ? `${(img.clientHeight - img.clientWidth) / 2}px` : '0'
       canvasSizeRef.current = { w: newW, h: newH }
       draw()
     }
@@ -113,9 +216,9 @@ export default function CropOverlay({ imgRef, naturalWidth, naturalHeight, initi
     const observer = new ResizeObserver(syncSize)
     observer.observe(img)
     return () => observer.disconnect()
-  }, [imgRef])
+  }, [imgRef, rotation])
 
-  // Sync initialRegion prop → boxRef (on mount and when region changes via preset)
+  // Sync initialRegion prop → boxRef (on mount and when region or transforms change)
   useEffect(() => {
     const canvas = canvasRef.current
     if (!canvas) return
@@ -126,14 +229,9 @@ export default function CropOverlay({ imgRef, naturalWidth, naturalHeight, initi
     }
     const { width: cw, height: ch } = canvas
     if (cw === 0 || ch === 0 || naturalWidth === 0 || naturalHeight === 0) return
-    boxRef.current = {
-      x: initialRegion.x * cw / naturalWidth,
-      y: initialRegion.y * ch / naturalHeight,
-      w: initialRegion.w * cw / naturalWidth,
-      h: initialRegion.h * ch / naturalHeight,
-    }
+    boxRef.current = naturalBoxToCanvas(initialRegion, cw, ch, naturalWidth, naturalHeight, rotation, flipH, flipV)
     draw()
-  }, [initialRegion, naturalWidth, naturalHeight])
+  }, [initialRegion, naturalWidth, naturalHeight, rotation, flipH, flipV])
 
   function getPos(e: React.PointerEvent): { x: number; y: number } {
     const canvas = canvasRef.current!
@@ -227,14 +325,7 @@ export default function CropOverlay({ imgRef, naturalWidth, naturalHeight, initi
       draw()
     } else if (box && canvas && box.w > 5 && box.h > 5) {
       draw()
-      const scaleX = naturalWidth / canvas.width
-      const scaleY = naturalHeight / canvas.height
-      onCrop({
-        x: Math.round(box.x * scaleX),
-        y: Math.round(box.y * scaleY),
-        w: Math.round(box.w * scaleX),
-        h: Math.round(box.h * scaleY),
-      })
+      onCrop(canvasBoxToNatural(box, canvas.width, canvas.height, naturalWidth, naturalHeight, rotation, flipH, flipV))
     }
 
     updateCursor(x, y)

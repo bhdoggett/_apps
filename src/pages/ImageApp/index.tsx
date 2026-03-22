@@ -258,6 +258,9 @@ const [state, dispatch] = useReducer(reducer, initial)
                       imgRef={imgRef}
                       naturalWidth={current.img.naturalWidth}
                       naturalHeight={current.img.naturalHeight}
+                      rotation={transforms.rotation}
+                      flipH={transforms.flipH}
+                      flipV={transforms.flipV}
                       initialRegion={transforms.crop}
                       onCrop={(region) => dispatch({ type: 'SET_CROP', region })}
                     />

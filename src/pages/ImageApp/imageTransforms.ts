@@ -86,6 +86,136 @@ function removeBgFromImageData(imageData: ImageData, bgColor: [number, number, n
   }
 }
 
+function clamp(v: number): number {
+  return v < 0 ? 0 : v > 255 ? 255 : v
+}
+
+function rgbToHsl(r: number, g: number, b: number): [number, number, number] {
+  const rf = r / 255, gf = g / 255, bf = b / 255
+  const max = Math.max(rf, gf, bf), min = Math.min(rf, gf, bf)
+  const l = (max + min) / 2
+  if (max === min) return [0, 0, l]
+  const d = max - min
+  const s = l > 0.5 ? d / (2 - max - min) : d / (max + min)
+  let h: number
+  if (max === rf) h = ((gf - bf) / d + (gf < bf ? 6 : 0)) / 6
+  else if (max === gf) h = ((bf - rf) / d + 2) / 6
+  else h = ((rf - gf) / d + 4) / 6
+  return [h, s, l]
+}
+
+function hue2rgb(p: number, q: number, t: number): number {
+  if (t < 0) t += 1
+  if (t > 1) t -= 1
+  if (t < 1 / 6) return p + (q - p) * 6 * t
+  if (t < 0.5) return q
+  if (t < 2 / 3) return p + (q - p) * (2 / 3 - t) * 6
+  return p
+}
+
+function hslToRgb(h: number, s: number, l: number): [number, number, number] {
+  if (s === 0) { const v = Math.round(l * 255); return [v, v, v] }
+  const q = l < 0.5 ? l * (1 + s) : l + s - l * s
+  const p = 2 * l - q
+  return [
+    Math.round(hue2rgb(p, q, h + 1 / 3) * 255),
+    Math.round(hue2rgb(p, q, h) * 255),
+    Math.round(hue2rgb(p, q, h - 1 / 3) * 255),
+  ]
+}
+
+// O(n) separable box blur using a sliding window.
+function boxBlur(imageData: ImageData, r: number): ImageData {
+  const { width: w, height: h } = imageData
+  const src = imageData.data
+  const tmp = new Uint8ClampedArray(src.length)
+  const out = new Uint8ClampedArray(src.length)
+
+  // Horizontal pass: src → tmp
+  for (let y = 0; y < h; y++) {
+    const rowOff = y * w * 4
+    let rs = 0, gs = 0, bs = 0, as = 0, cnt = 0
+    for (let x = 0; x <= r && x < w; x++) {
+      const pi = rowOff + x * 4
+      rs += src[pi]; gs += src[pi + 1]; bs += src[pi + 2]; as += src[pi + 3]; cnt++
+    }
+    for (let x = 0; x < w; x++) {
+      const pi = rowOff + x * 4
+      tmp[pi] = rs / cnt | 0; tmp[pi + 1] = gs / cnt | 0; tmp[pi + 2] = bs / cnt | 0; tmp[pi + 3] = as / cnt | 0
+      if (x + r + 1 < w) { const ai = rowOff + (x + r + 1) * 4; rs += src[ai]; gs += src[ai + 1]; bs += src[ai + 2]; as += src[ai + 3]; cnt++ }
+      if (x - r >= 0) { const ri = rowOff + (x - r) * 4; rs -= src[ri]; gs -= src[ri + 1]; bs -= src[ri + 2]; as -= src[ri + 3]; cnt-- }
+    }
+  }
+
+  // Vertical pass: tmp → out
+  for (let x = 0; x < w; x++) {
+    let rs = 0, gs = 0, bs = 0, as = 0, cnt = 0
+    for (let y = 0; y <= r && y < h; y++) {
+      const pi = (y * w + x) * 4
+      rs += tmp[pi]; gs += tmp[pi + 1]; bs += tmp[pi + 2]; as += tmp[pi + 3]; cnt++
+    }
+    for (let y = 0; y < h; y++) {
+      const pi = (y * w + x) * 4
+      out[pi] = rs / cnt | 0; out[pi + 1] = gs / cnt | 0; out[pi + 2] = bs / cnt | 0; out[pi + 3] = as / cnt | 0
+      if (y + r + 1 < h) { const ai = ((y + r + 1) * w + x) * 4; rs += tmp[ai]; gs += tmp[ai + 1]; bs += tmp[ai + 2]; as += tmp[ai + 3]; cnt++ }
+      if (y - r >= 0) { const ri = ((y - r) * w + x) * 4; rs -= tmp[ri]; gs -= tmp[ri + 1]; bs -= tmp[ri + 2]; as -= tmp[ri + 3]; cnt-- }
+    }
+  }
+
+  return new ImageData(out, w, h)
+}
+
+// Apply color filters and blur to ImageData pixels directly — avoids ctx.filter
+// which isn't supported in Safari < 18.
+function applyFiltersToImageData(imageData: ImageData, t: TransformState): ImageData {
+  const data = imageData.data
+  const brightnessF = 1 + t.brightness / 100
+  const contrastF = 1 + t.contrast / 100
+  const saturateF = 1 + t.saturate / 100
+  const hasColorFilters = t.greyscale || t.sepia || t.invert ||
+    t.brightness !== 0 || t.contrast !== 0 || t.saturate !== 0 || t.hueRotate !== 0
+
+  if (hasColorFilters) {
+    for (let i = 0; i < data.length; i += 4) {
+      let r = data[i], g = data[i + 1], b = data[i + 2]
+
+      if (t.greyscale) {
+        const L = Math.round(0.2126 * r + 0.7152 * g + 0.0722 * b)
+        r = g = b = L
+      }
+      if (t.sepia) {
+        const nr = Math.min(255, r * 0.393 + g * 0.769 + b * 0.189)
+        const ng = Math.min(255, r * 0.349 + g * 0.686 + b * 0.168)
+        const nb = Math.min(255, r * 0.272 + g * 0.534 + b * 0.131)
+        r = nr; g = ng; b = nb
+      }
+      if (t.invert) { r = 255 - r; g = 255 - g; b = 255 - b }
+      if (t.brightness !== 0) { r = clamp(r * brightnessF); g = clamp(g * brightnessF); b = clamp(b * brightnessF) }
+      if (t.contrast !== 0) {
+        r = clamp((r - 128) * contrastF + 128)
+        g = clamp((g - 128) * contrastF + 128)
+        b = clamp((b - 128) * contrastF + 128)
+      }
+      if (t.saturate !== 0) {
+        const f = saturateF
+        const nr = clamp(r * (0.2126 + 0.7874 * f) + g * (0.7152 - 0.7152 * f) + b * (0.0722 - 0.0722 * f))
+        const ng = clamp(r * (0.2126 - 0.2126 * f) + g * (0.7152 + 0.2848 * f) + b * (0.0722 - 0.0722 * f))
+        const nb = clamp(r * (0.2126 - 0.2126 * f) + g * (0.7152 - 0.7152 * f) + b * (0.0722 + 0.9278 * f))
+        r = nr; g = ng; b = nb
+      }
+      if (t.hueRotate !== 0) {
+        const [h, s, l] = rgbToHsl(r, g, b)
+        const newH = ((h + t.hueRotate / 360) % 1 + 1) % 1
+        ;[r, g, b] = hslToRgb(newH, s, l)
+      }
+
+      data[i] = r; data[i + 1] = g; data[i + 2] = b
+    }
+  }
+
+  return t.blur > 0 ? boxBlur(imageData, Math.round(t.blur)) : imageData
+}
+
 export function renderRemovedBg(img: HTMLImageElement, t: TransformState): ImageData {
   const srcX = t.crop ? t.crop.x : 0
   const srcY = t.crop ? t.crop.y : 0
@@ -134,42 +264,48 @@ export function applyTransforms(
   const outW = rotated ? srcH : srcW
   const outH = rotated ? srcW : srcH
 
+  // Pass 1: apply spatial transforms (crop, rotation, flip) with no CSS filter.
+  // ctx.filter combined with rotate/scale has cross-browser reliability issues,
+  // so we separate the two concerns into two draw passes.
+  const spatialCanvas = document.createElement('canvas')
+  spatialCanvas.width = outW
+  spatialCanvas.height = outH
+  const spatialCtx = spatialCanvas.getContext('2d')!
+  spatialCtx.save()
+  spatialCtx.translate(outW / 2, outH / 2)
+  spatialCtx.rotate((t.rotation * Math.PI) / 180)
+  if (t.flipH) spatialCtx.scale(-1, 1)
+  if (t.flipV) spatialCtx.scale(1, -1)
+  spatialCtx.drawImage(img, srcX, srcY, srcW, srcH, -srcW / 2, -srcH / 2, srcW, srcH)
+  spatialCtx.restore()
+
+  // Pass 2: get pixels, apply bg removal and filters via pixel manipulation.
+  // (ctx.filter is not supported in Safari < 18, so we do it in JS instead.)
+  let imageData = spatialCtx.getImageData(0, 0, outW, outH)
+
+  if (t.removeBg && format !== 'jpeg') {
+    const bgColor = detectBackgroundColor(imageData.data, outW, outH)
+    removeBgFromImageData(imageData, bgColor, t.bgTolerance)
+  }
+
+  imageData = applyFiltersToImageData(imageData, t)
+
+  // For JPEG: composite filtered pixels over white (handles transparent PNG sources).
+  if (format === 'jpeg') {
+    const { data } = imageData
+    for (let i = 0; i < data.length; i += 4) {
+      const a = data[i + 3] / 255
+      data[i]     = Math.round(data[i]     * a + 255 * (1 - a))
+      data[i + 1] = Math.round(data[i + 1] * a + 255 * (1 - a))
+      data[i + 2] = Math.round(data[i + 2] * a + 255 * (1 - a))
+      data[i + 3] = 255
+    }
+  }
+
   const canvas = document.createElement('canvas')
   canvas.width = outW
   canvas.height = outH
-  const ctx = canvas.getContext('2d')!
-
-  if (format === 'jpeg') {
-    ctx.fillStyle = '#ffffff'
-    ctx.fillRect(0, 0, canvas.width, canvas.height)
-  }
-
-  const filters: string[] = []
-  if (t.greyscale) filters.push('grayscale(1)')
-  if (t.sepia) filters.push('sepia(1)')
-  if (t.invert) filters.push('invert(1)')
-  if (t.brightness !== 0) filters.push(`brightness(${1 + t.brightness / 100})`)
-  if (t.contrast !== 0) filters.push(`contrast(${1 + t.contrast / 100})`)
-  if (t.saturate !== 0) filters.push(`saturate(${1 + t.saturate / 100})`)
-  if (t.hueRotate !== 0) filters.push(`hue-rotate(${t.hueRotate}deg)`)
-  if (t.blur !== 0) filters.push(`blur(${t.blur}px)`)
-  ctx.filter = filters.length > 0 ? filters.join(' ') : 'none'
-
-  ctx.save()
-  ctx.translate(outW / 2, outH / 2)
-  ctx.rotate((t.rotation * Math.PI) / 180)
-  if (t.flipH) ctx.scale(-1, 1)
-  if (t.flipV) ctx.scale(1, -1)
-  ctx.drawImage(img, srcX, srcY, srcW, srcH, -srcW / 2, -srcH / 2, srcW, srcH)
-  ctx.restore()
-
-  if (t.removeBg && format !== 'jpeg') {
-    const imageData = ctx.getImageData(0, 0, outW, outH)
-    const bgColor = detectBackgroundColor(imageData.data, outW, outH)
-    removeBgFromImageData(imageData, bgColor, t.bgTolerance)
-    ctx.clearRect(0, 0, outW, outH)
-    ctx.putImageData(imageData, 0, 0)
-  }
+  canvas.getContext('2d')!.putImageData(imageData, 0, 0)
 
   canvas.toBlob((blob) => {
     if (blob) onBlob(blob)
