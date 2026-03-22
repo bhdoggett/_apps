@@ -70,6 +70,7 @@ type Action =
   | { type: 'SET_SOLO_GROUP'; index: number | null }
   | { type: 'SET_GROUP_OPACITY'; index: number; value: number }
   | { type: 'LOAD_GROUPS'; groups: GradientGroup[] }
+  | { type: 'REORDER_GROUPS'; from: number; to: number }
 
 // ── URL sharing ──────────────────────────────────────────────────────────────
 
@@ -257,6 +258,20 @@ function reducer(state: State, action: Action): State {
     }
     case 'LOAD_GROUPS':
       return { ...state, groups: action.groups, activeGroup: 0, soloGroup: null }
+    case 'REORDER_GROUPS': {
+      const groups = [...state.groups]
+      const [moved] = groups.splice(action.from, 1)
+      groups.splice(action.to, 0, moved)
+      let activeGroup = state.activeGroup
+      if (state.activeGroup === action.from) {
+        activeGroup = action.to
+      } else if (action.from < action.to) {
+        if (state.activeGroup > action.from && state.activeGroup <= action.to) activeGroup--
+      } else {
+        if (state.activeGroup >= action.to && state.activeGroup < action.from) activeGroup++
+      }
+      return { ...state, groups, activeGroup }
+    }
     default:
       return state
   }
@@ -286,15 +301,19 @@ function groupGradientCss(group: GradientGroup): string {
 }
 
 function gradientCss(state: State): string {
-  if (state.groups.length === 1 && state.groups[0].opacity === 100) {
-    return groupGradientCss(state.groups[0])
+  if (state.groups.length === 1) {
+    const g = state.groups[0]
+    const opacity = g.opacity < 100 ? `\nopacity: ${(g.opacity / 100).toFixed(2)};` : ''
+    return `background: ${groupGradientCss(g)};${opacity}`
   }
-  return state.groups
+  const cssRules = state.groups
     .map((g, i) => {
-      const opacityLine = g.opacity < 100 ? `\n  opacity: ${(g.opacity / 100).toFixed(2)};` : ''
-      return `/* layer ${i + 1} */\nbackground: ${groupGradientCss(g)};${opacityLine}`
+      const opacity = g.opacity < 100 ? `\n  opacity: ${(g.opacity / 100).toFixed(2)};` : ''
+      return `.layer-${i + 1} {\n  background: ${groupGradientCss(g)};${opacity}\n}`
     })
-    .join('\n\n')
+    .join('\n')
+  const divs = state.groups.map((_, i) => `  <div class="layer-${i + 1}"></div>`).join('\n')
+  return `<style>\n.gradient { position: relative; }\n.gradient > div { position: absolute; inset: 0; }\n${cssRules}\n</style>\n\n<div class="gradient">\n${divs}\n</div>`
 }
 
 const WHEEL_SIZE = 180
@@ -418,6 +437,8 @@ export default function ColorApp() {
   const stopsRef = useRef(state.groups[state.activeGroup].stops)
   const didDragRef = useRef(false)
   const stopsDragSrc = useRef<number | null>(null)
+  const groupDragSrc = useRef<number | null>(null)
+  const layerTabsRef = useRef<HTMLDivElement>(null)
   const stopsListRef = useRef<HTMLDivElement>(null)
   const gradientModeRef = useRef(state.groups[state.activeGroup].gradientMode)
   const angleRef = useRef(state.groups[state.activeGroup].angle)
@@ -628,6 +649,56 @@ export default function ColorApp() {
     return () => cleanups.forEach(fn => fn())
   }, [state.groups[state.activeGroup].stops.length])
 
+  // Touch drag-to-reorder for layer tabs
+  useEffect(() => {
+    const container = layerTabsRef.current
+    if (!container) return
+    const handles = container.querySelectorAll<HTMLElement>(`.${styles.layerDragHandle}`)
+    const cleanups: (() => void)[] = []
+    handles.forEach((handle) => {
+      const tab = handle.closest<HTMLElement>('[data-groupindex]')!
+      const onTouchStart = () => {
+        groupDragSrc.current = Number(tab.dataset.groupindex)
+      }
+      const onTouchMove = (e: TouchEvent) => {
+        if (groupDragSrc.current === null) return
+        e.preventDefault()
+        const touch = e.touches[0]
+        container.querySelectorAll('[data-groupindex]').forEach(el =>
+          el.classList.remove(styles.dragAbove, styles.dragBelow)
+        )
+        const target = document.elementFromPoint(touch.clientX, touch.clientY)?.closest<HTMLElement>('[data-groupindex]')
+        if (target && Number(target.dataset.groupindex) !== groupDragSrc.current) {
+          const mid = target.getBoundingClientRect().left + target.getBoundingClientRect().width / 2
+          target.classList.toggle(styles.dragAbove, touch.clientX < mid)
+          target.classList.toggle(styles.dragBelow, touch.clientX >= mid)
+        }
+      }
+      const onTouchEnd = (e: TouchEvent) => {
+        if (groupDragSrc.current === null) return
+        const touch = e.changedTouches[0]
+        container.querySelectorAll('[data-groupindex]').forEach(el =>
+          el.classList.remove(styles.dragAbove, styles.dragBelow)
+        )
+        const target = document.elementFromPoint(touch.clientX, touch.clientY)?.closest<HTMLElement>('[data-groupindex]')
+        const srcIdx = groupDragSrc.current
+        if (target && Number(target.dataset.groupindex) !== srcIdx) {
+          dispatch({ type: 'REORDER_GROUPS', from: srcIdx, to: Number(target.dataset.groupindex) })
+        }
+        groupDragSrc.current = null
+      }
+      handle.addEventListener('touchstart', onTouchStart, { passive: true })
+      handle.addEventListener('touchmove', onTouchMove, { passive: false })
+      handle.addEventListener('touchend', onTouchEnd)
+      cleanups.push(() => {
+        handle.removeEventListener('touchstart', onTouchStart)
+        handle.removeEventListener('touchmove', onTouchMove)
+        handle.removeEventListener('touchend', onTouchEnd)
+      })
+    })
+    return () => cleanups.forEach(fn => fn())
+  }, [state.groups.length])
+
   const { stops, angle, conicAngle, gradientMode, radialShape, selectedStop,
           radialCenterX, radialCenterY, radialSizeX, radialSizeY } = ag
   const { pickedColor, alpha } = state
@@ -779,12 +850,23 @@ export default function ColorApp() {
       <div className={styles.gradientSection}>
 
         {/* Layer tabs */}
-        <div className={styles.layerTabs}>
+        <div className={styles.layerTabs} ref={layerTabsRef}>
           {state.groups.map((_, i) => (
             <div
               key={i}
+              data-groupindex={i}
               className={[styles.layerTab, state.activeGroup === i ? styles.layerTabActive : ''].filter(Boolean).join(' ')}
               onClick={() => dispatch({ type: 'SET_ACTIVE_GROUP', index: i })}
+              onDragOver={(e) => {
+                e.preventDefault()
+                e.dataTransfer.dropEffect = 'move'
+              }}
+              onDrop={(e) => {
+                e.preventDefault()
+                if (groupDragSrc.current === null || groupDragSrc.current === i) return
+                dispatch({ type: 'REORDER_GROUPS', from: groupDragSrc.current, to: i })
+                groupDragSrc.current = null
+              }}
             >
               <button
                 className={[styles.layerTabEye, state.soloGroup === i ? styles.layerTabEyeActive : ''].filter(Boolean).join(' ')}
@@ -804,14 +886,25 @@ export default function ColorApp() {
                   </svg>
                 )}
               </button>
-              <span>layer {i + 1}</span>
-              <DragNumber
-                value={state.groups[i].opacity}
-                min={0}
-                max={100}
-                className={styles.layerOpacityInput}
-                onChange={(v) => dispatch({ type: 'SET_GROUP_OPACITY', index: i, value: v })}
-              />
+              <span
+                className={styles.layerDragHandle}
+                draggable
+                onDragStart={(e) => {
+                  e.stopPropagation()
+                  groupDragSrc.current = i
+                  e.dataTransfer.effectAllowed = 'move'
+                }}
+                onDragEnd={() => { groupDragSrc.current = null }}
+              >layer {i + 1}</span>
+              <span onMouseDown={(e) => e.stopPropagation()} onPointerDown={(e) => e.stopPropagation()} onDragStart={(e) => e.stopPropagation()}>
+                <DragNumber
+                  value={state.groups[i].opacity}
+                  min={0}
+                  max={100}
+                  className={styles.layerOpacityInput}
+                  onChange={(v) => dispatch({ type: 'SET_GROUP_OPACITY', index: i, value: v })}
+                />
+              </span>
               <span className={styles.layerOpacityUnit}>%</span>
               {state.groups.length > 1 && (
                 <button

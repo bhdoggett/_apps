@@ -565,6 +565,22 @@
   color: var(--fg);
 }
 
+.layerDragHandle {
+  cursor: grab;
+}
+
+.layerDragHandle:active {
+  cursor: grabbing;
+}
+
+.layerTab.dragAbove {
+  box-shadow: -2px 0 0 var(--fg);
+}
+
+.layerTab.dragBelow {
+  box-shadow: 2px 0 0 var(--fg);
+}
+
 .layerTabRemove {
   background: none;
   border: none;
