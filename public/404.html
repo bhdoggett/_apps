@@ -1,3 +1,4 @@
 <!DOCTYPE html><html><head><script>
-  window.location.replace('/?p=' + encodeURIComponent(window.location.pathname));
+  var loc = window.location;
+  loc.replace('/?p=' + encodeURIComponent(loc.pathname) + (loc.hash ? '&h=' + encodeURIComponent(loc.hash) : ''));
 </script></head></html>
