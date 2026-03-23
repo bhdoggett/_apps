@@ -62,9 +62,16 @@ export default function Landing() {
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   useLayoutEffect(() => {
-    if (sizerRef.current && inputRef.current) {
-      inputRef.current.style.width = sizerRef.current.offsetWidth + "px";
-    }
+    const sizer = sizerRef.current
+    const input = inputRef.current
+    if (!sizer || !input) return
+
+    const sync = () => { input.style.width = sizer.offsetWidth + 4 + 'px' }
+    sync()
+
+    const ro = new ResizeObserver(sync)
+    ro.observe(sizer)
+    return () => ro.disconnect()
   }, [prefix]);
 
   function handleChange(e: React.ChangeEvent<HTMLInputElement>) {
@@ -83,7 +90,7 @@ export default function Landing() {
         <span ref={sizerRef} className={styles.prefixSizer} aria-hidden="true">
           {prefix || "_"}
         </span>
-        <h1 className={styles.title} onClick={() => inputRef.current?.focus()}>
+        <h1 className={styles.title}>
           <input
             ref={inputRef}
             className={styles.prefixInput}
@@ -94,7 +101,7 @@ export default function Landing() {
             maxLength={20}
             aria-label="Customize title"
           />
-          <span>apps</span>
+          <span className={styles.appsSpan}>apps</span>
         </h1>
         <ul className={styles.appList}>
           {apps.map((app) => (
