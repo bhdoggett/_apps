@@ -3,6 +3,7 @@ import AppHeader from '../../components/AppHeader'
 import ActionButton from '../../components/ActionButton'
 import DragNumber from '../../components/DragNumber'
 import StatusMessage from '../../components/StatusMessage'
+import { useAbout } from '../../contexts/AboutContext'
 import styles from './DrawApp.module.css'
 
 type Tool = 'pencil' | 'eraser'
@@ -70,6 +71,31 @@ const CANVAS_H = 840
 
 export default function DrawApp() {
   const [state, dispatch] = useReducer(reducer, initial)
+  const { setContent, setIsOpen } = useAbout()
+
+  useEffect(() => {
+    setContent(
+      <>
+        <p>
+          A simple sketchpad for signatures, quick sketches, and anything in between.
+          Works with mouse, touch, or stylus.
+        </p>
+        <p>
+          Drag the size input to adjust brush or eraser size. Use the crop button to
+          define an export region — only the selected area will be included in downloads.
+        </p>
+        <p>
+          Keyboard shortcuts: <strong>Cmd+Z</strong> to undo,{' '}
+          <strong>Cmd+Shift+Z</strong> to redo, <strong>Esc</strong> to cancel crop.
+        </p>
+      </>
+    )
+    return () => {
+      setContent(null)
+      setIsOpen(false)
+    }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const overlayRef = useRef<HTMLCanvasElement>(null)
   const isDrawing = useRef(false)
@@ -336,8 +362,10 @@ export default function DrawApp() {
               className={[
                 styles.swatch,
                 state.color === hex && state.tool === 'pencil' ? styles.swatchActive : '',
-                // orange(3), green(5), blue(6), purple(7) hidden ≤375px
-                [3, 5, 6, 7].includes(i) ? styles.swatchHideMedium : '',
+                // orange(3), green(5), purple(7) hidden ≤425px
+                [3, 5, 7].includes(i) ? styles.swatchHideLarge : '',
+                // blue(6) hidden ≤375px
+                i === 6 ? styles.swatchHideMedium : '',
                 // red(2), yellow(4) hidden ≤320px
                 [2, 4].includes(i) ? styles.swatchHideSmall : '',
               ].filter(Boolean).join(' ')}

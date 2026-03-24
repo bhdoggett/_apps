@@ -167,6 +167,12 @@
   }
 }
 
+@media (max-width: 470px) {
+  .swatchHideLarge {
+    display: none;
+  }
+}
+
 @media (max-width: 375px) {
   .swatchHideMedium {
     display: none;
@@ -176,6 +182,10 @@
 @media (max-width: 320px) {
   .swatchHideSmall {
     display: none;
+  }
+
+  .toolbarRow {
+    gap: 0.35rem;
   }
 }
 
