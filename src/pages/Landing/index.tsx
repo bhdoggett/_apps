@@ -14,6 +14,7 @@ const apps = [
   { path: "/image", name: "image" },
   { path: "/audio", name: "audio" },
   { path: "/color", name: "color" },
+  { path: "/draw", name: "draw" },
   // audio & music
   { path: "/decibels", name: "decibels" },
   { path: "/tuner", name: "tuner" },
@@ -22,7 +23,6 @@ const apps = [
   { path: "/timer", name: "timer" },
   { path: "/location", name: "location" },
   { path: "/dice", name: "dice" },
-  { path: "/draw", name: "draw" },
 ];
 
 export default function Landing() {
