@@ -203,6 +203,20 @@
 
 .addForm {
   padding: 0.4rem 0 0.95rem;
+  transition: opacity 0.15s;
+}
+
+.addFormDragOver {
+  opacity: 0.7;
+}
+
+.importFeedback {
+  font-size: 0.6rem;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin: 0.3rem 0 0;
+  padding-left: 2.6rem;
 }
 
 .addFormInner {

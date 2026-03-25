@@ -22,11 +22,15 @@ export default function ListApp() {
   const [editingId, setEditingId] = useState<number | null>(null)
   const [editValue, setEditValue] = useState('')
   const [copied, setCopied] = useState(false)
+  const [importedCount, setImportedCount] = useState(0)
+  const [fileDragOver, setFileDragOver] = useState(false)
   const listRef = useRef<HTMLUListElement>(null)
   const dragSrcId = useRef<number | null>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const editInputRef = useRef<HTMLTextAreaElement>(null)
   const copiedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const importedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const fileDragCountRef = useRef(0)
 
   useEffect(() => { save(items) }, [items])
 
@@ -116,6 +120,61 @@ export default function ListApp() {
   function handleEditKeyDown(e: React.KeyboardEvent) {
     if (e.key === 'Enter') { e.preventDefault(); commitEdit() }
     if (e.key === 'Escape') { e.preventDefault(); cancelEdit() }
+  }
+
+  function parseLines(text: string): string[] {
+    return text
+      .split(/\r?\n/)
+      .map(line => line.trim().replace(/^[-•*+]\s+/, '').replace(/^\d+[.)]\s+/, '').trim())
+      .filter(Boolean)
+  }
+
+  function importLines(lines: string[]) {
+    const now = Date.now()
+    const newItems = lines.map((text, i) => ({ id: now + i, text }))
+    setItems(prev => [...newItems, ...prev])
+    setImportedCount(lines.length)
+    if (importedTimerRef.current) clearTimeout(importedTimerRef.current)
+    importedTimerRef.current = setTimeout(() => setImportedCount(0), 2000)
+  }
+
+  function handleAddPaste(e: React.ClipboardEvent<HTMLTextAreaElement>) {
+    const text = e.clipboardData.getData('text')
+    const lines = parseLines(text)
+    if (lines.length < 2) return
+    e.preventDefault()
+    importLines(lines)
+  }
+
+  function handleFormDragEnter(e: React.DragEvent) {
+    if (!e.dataTransfer.types.includes('Files')) return
+    fileDragCountRef.current++
+    setFileDragOver(true)
+  }
+
+  function handleFormDragLeave(e: React.DragEvent) {
+    if (!e.dataTransfer.types.includes('Files')) return
+    fileDragCountRef.current--
+    if (fileDragCountRef.current === 0) setFileDragOver(false)
+  }
+
+  function handleFormDragOver(e: React.DragEvent) {
+    if (!e.dataTransfer.types.includes('Files')) return
+    e.preventDefault()
+    e.dataTransfer.dropEffect = 'copy'
+  }
+
+  function handleFormDrop(e: React.DragEvent) {
+    if (!e.dataTransfer.types.includes('Files')) return
+    e.preventDefault()
+    fileDragCountRef.current = 0
+    setFileDragOver(false)
+    const file = e.dataTransfer.files[0]
+    if (!file) return
+    file.text().then(text => {
+      const lines = parseLines(text)
+      if (lines.length > 0) importLines(lines)
+    })
   }
 
   function exportTxt() {
@@ -267,28 +326,41 @@ export default function ListApp() {
             <li>Click the checkbox to remove an item</li>
             <li>Click an item's text to edit it</li>
             <li>Drag the grip handle to reorder</li>
-            <li>Download the list as a .txt file or copy it to the clipboard using the icons next to the item count</li>
+            <li>Use the icons next to the item count to download as a .txt file or copy to clipboard</li>
+            <li>Paste multi-line text into the input to import multiple items at once</li>
+            <li>Drag and drop a .txt file onto the input to import it — leading bullets and dashes are stripped automatically</li>
           </ul>
         </>}
       />
 
-      <form className={styles.addForm} onSubmit={handleSubmit}>
+      <form
+        className={[styles.addForm, fileDragOver ? styles.addFormDragOver : ''].filter(Boolean).join(' ')}
+        onSubmit={handleSubmit}
+        onDragEnter={handleFormDragEnter}
+        onDragLeave={handleFormDragLeave}
+        onDragOver={handleFormDragOver}
+        onDrop={handleFormDrop}
+      >
         <div className={styles.addFormInner}>
           <span className={styles.dragHandle} aria-hidden style={{ visibility: 'hidden' }}>⠿</span>
-          <span className={styles.addPrompt}>+</span>
+          <span className={styles.addPrompt}>{fileDragOver ? '↓' : '+'}</span>
           <textarea
             ref={inputRef}
             className={styles.addInput}
             value={inputValue}
             onChange={e => setInputValue(e.target.value)}
-            placeholder="add item…"
+            placeholder={fileDragOver ? 'drop to import…' : 'add item…'}
             rows={1}
             onKeyDown={e => {
               if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSubmit(e as unknown as React.FormEvent) }
             }}
+            onPaste={handleAddPaste}
           />
           <button type="submit" className={styles.addBtn}>add</button>
         </div>
+        {importedCount > 0 && (
+          <p className={styles.importFeedback}>{importedCount} item{importedCount !== 1 ? 's' : ''} added</p>
+        )}
       </form>
 
       <ul className={styles.list} ref={listRef}>
