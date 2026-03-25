@@ -310,10 +310,18 @@
   color: var(--muted);
 }
 
-@media (max-width: 600px) {
+@media (max-width: 425px) {
   .resizeHandle {
     width: 28px;
     height: 28px;
+  }
+
+  .canvasSizeGroup {
+    display: none;
+  }
+
+  .toolbarRowGrid {
+    grid-template-columns: 1fr 1fr;
   }
 }
 
