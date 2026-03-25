@@ -179,6 +179,12 @@
   }
 }
 
+@media (max-width: 375px) {
+  .copyLabel {
+    display: none;
+  }
+}
+
 @media (max-width: 320px) {
   .swatchHideSmall {
     display: none;
@@ -198,7 +204,7 @@
   font-size: 0.65rem;
   letter-spacing: 0.1em;
   padding: 0.35rem 0.4rem;
-  width: 1.8rem;
+  width: 2.4rem;
 }
 
 .canvasWrap {
@@ -236,5 +242,4 @@
   display: flex;
   gap: 0.5rem;
   margin-top: 0.75rem;
-  flex-wrap: wrap;
 }

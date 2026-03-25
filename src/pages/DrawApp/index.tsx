@@ -342,16 +342,26 @@ export default function DrawApp() {
         <div className={styles.toolbarRow}>
         <div className={styles.toolGroup}>
           <button
-            className={[styles.toolBtn, state.tool === 'pencil' ? styles.active : ''].filter(Boolean).join(' ')}
+            className={[styles.toolBtnIcon, state.tool === 'pencil' ? styles.active : ''].filter(Boolean).join(' ')}
             onClick={() => dispatch({ type: 'SET_TOOL', tool: 'pencil' })}
+            title="Pencil"
+            aria-label="Pencil"
           >
-            pencil
+            <svg width="13" height="13" viewBox="0 0 13 13" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M9.5 1.5l2 2-7.5 7.5H2v-2L9.5 1.5z"/>
+              <path d="M8 3l2 2"/>
+            </svg>
           </button>
           <button
-            className={[styles.toolBtn, state.tool === 'eraser' ? styles.active : ''].filter(Boolean).join(' ')}
+            className={[styles.toolBtnIcon, state.tool === 'eraser' ? styles.active : ''].filter(Boolean).join(' ')}
             onClick={() => dispatch({ type: 'SET_TOOL', tool: 'eraser' })}
+            title="Eraser"
+            aria-label="Eraser"
           >
-            eraser
+            <svg width="13" height="13" viewBox="0 0 13 13" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M2 11h9"/>
+              <path d="M7.5 2L11 5.5l-4 4.5H4.5L2 7.5 7.5 2z"/>
+            </svg>
           </button>
         </div>
 
@@ -414,7 +424,7 @@ export default function DrawApp() {
           <DragNumber
             value={activeSize}
             min={1}
-            max={40}
+            max={100}
             pixelsPerUnit={1}
             className={styles.sizeInput}
             onChange={(v) => {
@@ -474,7 +484,14 @@ export default function DrawApp() {
         <ActionButton onClick={() => download('png')}>png</ActionButton>
         <ActionButton onClick={() => download('jpeg')}>jpg</ActionButton>
         <ActionButton onClick={() => download('webp')}>webp</ActionButton>
-        <ActionButton onClick={copyPng}>copy png</ActionButton>
+        <div style={{ flex: 1 }} />
+        <ActionButton onClick={copyPng}>
+          <svg width="13" height="13" viewBox="0 0 13 13" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
+            <rect x="4" y="3" width="7" height="8" rx="1"/>
+            <path d="M9 3V2a1 1 0 0 0-1-1H2a1 1 0 0 0-1 1v7a1 1 0 0 0 1 1h1"/>
+          </svg>
+          <span className={styles.copyLabel}>png</span>
+        </ActionButton>
       </div>
 
       <StatusMessage message="copied!" visible={state.copied} />

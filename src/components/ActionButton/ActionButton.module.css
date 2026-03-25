@@ -10,6 +10,9 @@
   cursor: pointer;
   transition: border-color 0.15s, color 0.15s, background 0.15s;
   line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
 }
 
 .btn:hover,
