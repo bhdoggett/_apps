@@ -74,6 +74,18 @@ const SIZE_PRESETS: [number, number][] = [
 
 const MAX_HISTORY = 30
 
+// dxSign: +1 = drag right grows W, -1 = drag left grows W
+// dySign: +1 = drag down grows H, -1 = drag up grows H
+// rot: SVG rotation so dots point toward the corner
+// anchorX/anchorY: the corner that stays fixed during resize (0=left/top, 1=right/bottom)
+// When anchorX=1, content is read from the right side of the old canvas (and placed at left of new)
+const RESIZE_CORNERS = [
+  { id: 'br', dxSign:  1, dySign:  1, anchorX: 0, anchorY: 0, cursor: 'nwse-resize', rot:   0, pos: { bottom: 2, right: 2 } },
+  { id: 'bl', dxSign: -1, dySign:  1, anchorX: 1, anchorY: 0, cursor: 'nesw-resize', rot: 270, pos: { bottom: 2, left:  2 } },
+  { id: 'tr', dxSign:  1, dySign: -1, anchorX: 0, anchorY: 1, cursor: 'nesw-resize', rot:  90, pos: { top:    2, right: 2 } },
+  { id: 'tl', dxSign: -1, dySign: -1, anchorX: 1, anchorY: 1, cursor: 'nwse-resize', rot: 180, pos: { top:    2, left:  2 } },
+] as const
+
 export default function DrawApp() {
   const [state, dispatch] = useReducer(reducer, initial)
   const { setContent, setIsOpen } = useAbout()
@@ -109,12 +121,14 @@ export default function DrawApp() {
   const historyRef = useRef<ImageData[]>([])
   const historyIndexRef = useRef(-1)
   const copiedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const pendingResizeRef = useRef<HTMLImageElement | null>(null)
+  const pendingResizeRef = useRef<{ img: HTMLImageElement; oldW: number; oldH: number; anchorX: number; anchorY: number } | null>(null)
   // actualDims tracks the canvas element's real pixel dimensions — only updated on commit
   // so live drag previews (canvasW/H state changes) don't reset the canvas.
   const actualDimsRef = useRef({ w: initial.canvasW, h: initial.canvasH })
   const [commitCount, setCommitCount] = useState(0)
-  const resizeDragRef = useRef<{ startX: number; startY: number; startW: number; startH: number; displayW: number; displayH: number } | null>(null)
+  const [isResizing, setIsResizing] = useState(false)
+  const resizeDragRef = useRef<{ startX: number; startY: number; startW: number; startH: number; displayW: number; displayH: number; dxSign: number; dySign: number; anchorX: number; anchorY: number } | null>(null)
+  const resizeAnchorRef = useRef({ x: 0, y: 0 })
   const stateRef = useRef(state)
   stateRef.current = state
 
@@ -127,9 +141,19 @@ export default function DrawApp() {
     ctx.fillStyle = '#ffffff'
     ctx.fillRect(0, 0, canvas.width, canvas.height)
     if (pendingResizeRef.current) {
-      const img = pendingResizeRef.current
+      const { img, oldW, oldH, anchorX, anchorY } = pendingResizeRef.current
+      const newW = canvas.width
+      const newH = canvas.height
       const apply = () => {
-        ctx.drawImage(img, 0, 0)
+        // Source offset: read from the far edge when anchor is on that side
+        const srcX = anchorX === 1 ? Math.max(0, oldW - newW) : 0
+        const srcY = anchorY === 1 ? Math.max(0, oldH - newH) : 0
+        // Dest offset: place content away from edge when canvas grew on that side
+        const destX = anchorX === 1 ? Math.max(0, newW - oldW) : 0
+        const destY = anchorY === 1 ? Math.max(0, newH - oldH) : 0
+        const copyW = Math.min(newW, oldW)
+        const copyH = Math.min(newH, oldH)
+        ctx.drawImage(img, srcX, srcY, copyW, copyH, destX, destY, copyW, copyH)
         historyRef.current = [ctx.getImageData(0, 0, canvas.width, canvas.height)]
         historyIndexRef.current = 0
         pendingResizeRef.current = null
@@ -142,7 +166,7 @@ export default function DrawApp() {
     }
   }, [commitCount]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const commitResize = (w: number, h: number) => {
+  const commitResize = (w: number, h: number, anchorX = 0, anchorY = 0) => {
     const cw = Math.round(Math.max(200, Math.min(1240, w)) / 10) * 10
     const ch = Math.round(Math.max(200, Math.min(2000, h)) / 10) * 10
     if (cw === actualDimsRef.current.w && ch === actualDimsRef.current.h) return
@@ -150,14 +174,14 @@ export default function DrawApp() {
     if (!canvas) return
     const img = new Image()
     img.src = canvas.toDataURL()
-    pendingResizeRef.current = img
+    pendingResizeRef.current = { img, oldW: actualDimsRef.current.w, oldH: actualDimsRef.current.h, anchorX, anchorY }
     actualDimsRef.current = { w: cw, h: ch }
     dispatch({ type: 'SET_CANVAS_W', w: cw })
     dispatch({ type: 'SET_CANVAS_H', h: ch })
     setCommitCount(c => c + 1)
   }
 
-  const handleResizePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+  const handleResizePointerDown = (e: React.PointerEvent<HTMLDivElement>, dxSign: number, dySign: number, anchorX: number, anchorY: number) => {
     e.stopPropagation()
     e.currentTarget.setPointerCapture(e.pointerId)
     const canvas = canvasRef.current
@@ -170,33 +194,41 @@ export default function DrawApp() {
       startH: stateRef.current.canvasH,
       displayW: rect.width,
       displayH: rect.height,
+      dxSign,
+      dySign,
+      anchorX,
+      anchorY,
+    }
+    resizeAnchorRef.current = { x: anchorX, y: anchorY }
+    setIsResizing(true)
+  }
+
+  const calcResizeDims = (e: React.PointerEvent<HTMLDivElement>) => {
+    const drag = resizeDragRef.current!
+    const dx = (e.clientX - drag.startX) * drag.dxSign
+    const dy = (e.clientY - drag.startY) * drag.dySign
+    const scaleX = drag.startW / drag.displayW
+    const scaleY = drag.startH / drag.displayH
+    return {
+      newW: Math.round(Math.max(200, Math.min(1240, drag.startW + dx * scaleX)) / 10) * 10,
+      newH: Math.round(Math.max(200, Math.min(2000, drag.startH + dy * scaleY)) / 10) * 10,
     }
   }
 
   const handleResizePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
-    const drag = resizeDragRef.current
-    if (!drag) return
-    const dx = e.clientX - drag.startX
-    const dy = e.clientY - drag.startY
-    const scaleX = drag.startW / drag.displayW
-    const scaleY = drag.startH / drag.displayH
-    const newW = Math.round(Math.max(200, Math.min(1240, drag.startW + dx * scaleX)) / 10) * 10
-    const newH = Math.round(Math.max(200, Math.min(2000, drag.startH + dy * scaleY)) / 10) * 10
+    if (!resizeDragRef.current) return
+    const { newW, newH } = calcResizeDims(e)
     dispatch({ type: 'SET_CANVAS_W', w: newW })
     dispatch({ type: 'SET_CANVAS_H', h: newH })
   }
 
   const handleResizePointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
-    const drag = resizeDragRef.current
-    if (!drag) return
+    if (!resizeDragRef.current) return
+    const { anchorX, anchorY } = resizeDragRef.current
+    const { newW, newH } = calcResizeDims(e)
     resizeDragRef.current = null
-    const dx = e.clientX - drag.startX
-    const dy = e.clientY - drag.startY
-    const scaleX = drag.startW / drag.displayW
-    const scaleY = drag.startH / drag.displayH
-    const newW = Math.round(Math.max(200, Math.min(1240, drag.startW + dx * scaleX)) / 10) * 10
-    const newH = Math.round(Math.max(200, Math.min(2000, drag.startH + dy * scaleY)) / 10) * 10
-    commitResize(newW, newH)
+    setIsResizing(false)
+    commitResize(newW, newH, anchorX, anchorY)
   }
 
   // Draw crop overlay
@@ -537,12 +569,12 @@ export default function DrawApp() {
 
       <div
         className={styles.canvasWrap}
-        style={{ width: `${Math.min(100, (state.canvasW / 1240) * 100)}%`, margin: '0 auto' }}
+        style={{ width: `${Math.min(100, (actualDimsRef.current.w / 1240) * 100)}%`, margin: '0 auto' }}
       >
         <canvas
           ref={canvasRef}
           className={styles.canvas}
-          style={{ cursor: canvasCursor, aspectRatio: `${state.canvasW} / ${state.canvasH}` }}
+          style={{ cursor: canvasCursor, aspectRatio: `${actualDimsRef.current.w} / ${actualDimsRef.current.h}` }}
           width={actualDimsRef.current.w}
           height={actualDimsRef.current.h}
           onPointerDown={handlePointerDown}
@@ -557,19 +589,34 @@ export default function DrawApp() {
           height={actualDimsRef.current.h}
           style={{ pointerEvents: 'none' }}
         />
-        <div
-          className={styles.resizeHandle}
-          onPointerDown={handleResizePointerDown}
-          onPointerMove={handleResizePointerMove}
-          onPointerUp={handleResizePointerUp}
-          onPointerCancel={handleResizePointerUp}
-        >
-          <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor">
-            <circle cx="8.5" cy="8.5" r="1.2"/>
-            <circle cx="4.5" cy="8.5" r="1.2"/>
-            <circle cx="8.5" cy="4.5" r="1.2"/>
-          </svg>
-        </div>
+        {isResizing && (
+          <div
+            className={styles.resizeGhost}
+            style={{
+              width: `${(state.canvasW / actualDimsRef.current.w) * 100}%`,
+              height: `${(state.canvasH / actualDimsRef.current.h) * 100}%`,
+              ...(resizeAnchorRef.current.x === 0 ? { left: 0 } : { right: 0 }),
+              ...(resizeAnchorRef.current.y === 0 ? { top: 0 } : { bottom: 0 }),
+            }}
+          />
+        )}
+        {RESIZE_CORNERS.filter(c => c.id === 'br' || c.id === 'tl').map(({ id, dxSign, dySign, anchorX, anchorY, cursor, rot, pos }) => (
+          <div
+            key={id}
+            className={styles.resizeHandle}
+            style={{ ...pos, cursor }}
+            onPointerDown={(e) => handleResizePointerDown(e, dxSign, dySign, anchorX, anchorY)}
+            onPointerMove={handleResizePointerMove}
+            onPointerUp={handleResizePointerUp}
+            onPointerCancel={handleResizePointerUp}
+          >
+            <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor" style={{ transform: `rotate(${rot}deg)` }}>
+              <circle cx="8.5" cy="8.5" r="1.2"/>
+              <circle cx="4.5" cy="8.5" r="1.2"/>
+              <circle cx="8.5" cy="4.5" r="1.2"/>
+            </svg>
+          </div>
+        ))}
       </div>
 
       <div className={styles.exportRow}>
