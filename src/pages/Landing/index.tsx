@@ -61,8 +61,12 @@ export default function Landing() {
   } | null>(null);
 
   useEffect(() => {
+    const active = document.activeElement as HTMLElement | null;
+    active?.blur?.();
+
     const root = document.documentElement;
     const body = document.body;
+    const viewport = document.querySelector('meta[name="viewport"]');
 
     root.style.zoom = "";
     body.style.zoom = "";
@@ -70,6 +74,22 @@ export default function Landing() {
     body.style.transform = "";
     root.style.transformOrigin = "";
     body.style.transformOrigin = "";
+
+    // Mobile pinch/auto-zoom is controlled by the viewport meta tag, not CSS zoom.
+    // Toggle a locked scale once, then restore the normal viewport config.
+    if (viewport) {
+      const original = viewport.getAttribute("content") ?? "";
+      viewport.setAttribute(
+        "content",
+        "width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover",
+      );
+      window.requestAnimationFrame(() => {
+        viewport.setAttribute(
+          "content",
+          original || "width=device-width, initial-scale=1.0",
+        );
+      });
+    }
   }, []);
 
   useEffect(() => {
