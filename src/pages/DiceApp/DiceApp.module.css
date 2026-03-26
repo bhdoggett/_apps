@@ -287,6 +287,9 @@
 
 .histLegend {
   margin-top: 0.4rem;
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
 }
 
 .legendExpected {
@@ -294,4 +297,42 @@
   font-size: 0.55rem;
   letter-spacing: 0.08em;
   color: var(--dim);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.legendExpected::before {
+  content: '---';
+  font-family: var(--font-mono);
+  font-size: 0.55rem;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+  opacity: 0.9;
+}
+
+.legendCurve {
+  font-family: var(--font-mono);
+  font-size: 0.55rem;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.legendCurve::before {
+  content: '';
+  width: 1rem;
+  border-top: 1.2px solid var(--muted);
+  opacity: 0.85;
+}
+
+.histCurve {
+  fill: none;
+  stroke: var(--muted);
+  stroke-width: 1.2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  opacity: 0.85;
 }

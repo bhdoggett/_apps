@@ -73,30 +73,64 @@ function calcStats(values: number[]) {
   }
 }
 
-function Histogram({
-  freqMap,
+function TotalsHistogram({
+  totals,
+  numDice,
   numSides,
-  totalDice,
 }: {
-  freqMap: Record<number, number>
+  totals: number[]
+  numDice: number
   numSides: number
-  totalDice: number
 }) {
-  const values = Array.from({ length: numSides }, (_, i) => i + 1)
+  const minTotal = numDice
+  const maxTotal = numDice * numSides
+  const values = Array.from({ length: maxTotal - minTotal + 1 }, (_, i) => minTotal + i)
+  const freqMap: Record<number, number> = {}
+  totals.forEach(total => { freqMap[total] = (freqMap[total] || 0) + 1 })
   const counts = values.map(v => freqMap[v] || 0)
-  const maxCount = Math.max(...counts, 1)
-  const expected = totalDice / numSides
+  const expected = numDice * (numSides + 1) / 2
+
+  // Exact PMF for total of numDice independent uniform dice (1..numSides)
+  let totalPmf = new Map<number, number>([[0, 1]])
+  for (let die = 0; die < numDice; die++) {
+    const next = new Map<number, number>()
+    totalPmf.forEach((prob, sum) => {
+      for (let face = 1; face <= numSides; face++) {
+        const s = sum + face
+        next.set(s, (next.get(s) || 0) + prob / numSides)
+      }
+    })
+    totalPmf = next
+  }
+  const expectedCounts = values.map(v => (totalPmf.get(v) || 0) * totals.length)
+  const maxExpectedCount = Math.max(...expectedCounts, 0)
+  const maxCount = Math.max(...counts, maxExpectedCount, 1)
 
   const vbW = 560
   const vbH = 120
   const padTop = 8
-  const padBot = numSides <= 24 ? 22 : 4
+  const padBot = 22
   const padSide = 2
   const chartW = vbW - padSide * 2
   const chartH = vbH - padTop - padBot
-  const barSlot = chartW / numSides
+  const barSlot = chartW / values.length
   const barW = Math.max(barSlot - 1.5, 1)
-  const expectedY = padTop + chartH - (expected / maxCount) * chartH
+  const showLabels = barSlot >= 10
+  const expectedX = padSide + (expected - minTotal + 0.5) * barSlot
+  const expectedCurveCoords = values.map((v, i) => {
+    const x = padSide + (v - minTotal + 0.5) * barSlot
+    const y = padTop + chartH - (expectedCounts[i] / maxCount) * chartH
+    return { x, y }
+  })
+  const expectedCurvePath = expectedCurveCoords.length
+    ? expectedCurveCoords.reduce((path, point, i, arr) => {
+        if (i === 0) return `M ${point.x.toFixed(2)} ${point.y.toFixed(2)}`
+        const prev = arr[i - 1]
+        const cx = ((prev.x + point.x) / 2).toFixed(2)
+        return `${path} Q ${prev.x.toFixed(2)} ${prev.y.toFixed(2)} ${cx} ${((prev.y + point.y) / 2).toFixed(2)}`
+      }, '') +
+      ` T ${expectedCurveCoords[expectedCurveCoords.length - 1].x.toFixed(2)} ${expectedCurveCoords[expectedCurveCoords.length - 1].y.toFixed(2)}`
+    : ''
 
   return (
     <svg
@@ -117,7 +151,7 @@ function Histogram({
               height={barH}
               className={styles.histBar}
             />
-            {numSides <= 24 && (
+            {showLabels && (
               <text
                 x={x + barSlot / 2}
                 y={vbH - 5}
@@ -131,12 +165,15 @@ function Histogram({
         )
       })}
       <line
-        x1={padSide}
-        x2={vbW - padSide}
-        y1={expectedY}
-        y2={expectedY}
+        x1={expectedX}
+        x2={expectedX}
+        y1={padTop}
+        y2={padTop + chartH}
         className={styles.histExpectedLine}
       />
+      {totals.length > 1 && expectedCurvePath && (
+        <path d={expectedCurvePath} className={styles.histCurve} />
+      )}
     </svg>
   )
 }
@@ -232,14 +269,6 @@ export default function DiceApp() {
     }, 500)
   }, [numDice, numSides, rolling, persist])
 
-  // All individual die values across all rolls
-  const allValues = history.flat()
-
-  // Frequency map for histogram
-  const freqMap: Record<number, number> = {}
-  for (let v = 1; v <= numSides; v++) freqMap[v] = 0
-  allValues.forEach(v => { freqMap[v] = (freqMap[v] || 0) + 1 })
-
   // Per-roll totals
   const rollTotals = history.map(r => r.reduce((a, b) => a + b, 0))
 
@@ -248,14 +277,12 @@ export default function DiceApp() {
   const lastTotal = lastRoll.reduce((a, b) => a + b, 0)
 
   const expectedTotal = +(numDice * (numSides + 1) / 2).toFixed(1)
-  const expectedValue = +((numSides + 1) / 2).toFixed(2)
 
   const percentile =
     history.length > 0 && numDice >= 2
       ? rollPercentile(lastTotal, numDice, numSides)
       : null
 
-  const valueStats = calcStats(allValues)
   const totalStatsData = calcStats(rollTotals)
 
   // Die display
@@ -350,11 +377,11 @@ export default function DiceApp() {
           <div className={styles.statsBlock}>
             <div className={styles.rule} />
             {([
-              ['total', lastTotal],
-              ['expected', expectedTotal],
+              ['last total', lastTotal],
+              ['expected total', expectedTotal],
               ...(percentile !== null
                 ? [[
-                    'percentile',
+                    'last percentile',
                     percentile >= 0.5
                       ? `top ${((1 - percentile) * 100).toFixed(0)}%`
                       : `bottom ${(percentile * 100).toFixed(0)}%`,
@@ -368,50 +395,30 @@ export default function DiceApp() {
             ))}
           </div>
 
-          {/* Histogram */}
           <div className={styles.histogramBlock}>
             <div className={styles.histHeader}>
-              <span className={styles.sectionLabel}>distribution</span>
+              <span className={styles.sectionLabel}>totals over time</span>
               <span className={styles.sectionMeta}>
-                {history.length} roll{history.length !== 1 ? 's' : ''} · {allValues.length} dice
+                {history.length} roll{history.length !== 1 ? 's' : ''} · {numDice}d{numSides}
               </span>
             </div>
-            <Histogram freqMap={freqMap} numSides={numSides} totalDice={allValues.length} />
+            <TotalsHistogram totals={rollTotals} numDice={numDice} numSides={numSides} />
             <div className={styles.histLegend}>
-              <span className={styles.legendExpected}>— expected frequency</span>
+              <span className={styles.legendExpected}>expected total</span>
+              <span className={styles.legendCurve}>exact expected distribution</span>
             </div>
           </div>
 
-          {/* Cumulative individual value stats */}
-          {valueStats && (
-            <div className={styles.statsBlock}>
-              <div className={styles.rule} />
-              {([
-                ['mean value', valueStats.mean],
-                ['expected value', expectedValue],
-                ['std dev', valueStats.stdDev],
-                ['mode', valueStats.mode],
-                ['min', valueStats.min],
-                ['max', valueStats.max],
-              ] as [string, string | number][]).map(([label, val]) => (
-                <div key={label} className={styles.statRow}>
-                  <span className={styles.statLabel}>{label}</span>
-                  <span className={styles.statVal}>{val}</span>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {/* Cross-roll stats — only meaningful with multiple rolls */}
+          {/* Session stats — only meaningful with multiple rolls */}
           {history.length > 1 && totalStatsData && (
             <div className={styles.statsBlock}>
               <div className={styles.rule} />
               {([
-                ['rolls', history.length],
-                ['mean total', totalStatsData.mean],
-                ['total std dev', totalStatsData.stdDev],
-                ['best roll', totalStatsData.max],
-                ['worst roll', totalStatsData.min],
+                ['session rolls', history.length],
+                ['session mean total', totalStatsData.mean],
+                ['session std dev', totalStatsData.stdDev],
+                ['best total', totalStatsData.max],
+                ['worst total', totalStatsData.min],
                 ['total range', totalStatsData.range],
               ] as [string, string | number][]).map(([label, val]) => (
                 <div key={label} className={styles.statRow}>
