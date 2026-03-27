@@ -24,8 +24,6 @@ function buildKeys(): KeyData[] {
 const ALL_KEYS = buildKeys()
 const WHITE_KEYS = ALL_KEYS.filter(k => !k.isBlack)
 const TOTAL_WHITE_KEYS = WHITE_KEYS.length // 29
-// Maps whiteIndex → black key sitting on that index boundary.
-// C# gets whiteIndex == D's whiteIndex, so get(W+1) finds the black key right of white key W.
 const BLACK_KEY_MAP = new Map(ALL_KEYS.filter(k => k.isBlack).map(k => [k.whiteIndex, k]))
 const C4_WHITE_INDEX = 14 // MIDI 60
 const DRAG_THRESHOLD = 6 // px before a tap becomes a scroll drag
@@ -54,7 +52,6 @@ function LockIcon({ locked }: { locked: boolean }) {
       </svg>
     )
   }
-
   return (
     <svg viewBox="0 0 24 24" className={styles.lockIcon} aria-hidden="true">
       <rect x="6" y="10" width="12" height="10" rx="1" />
@@ -67,26 +64,26 @@ export default function PianoApp() {
   const [locked, setLocked] = useState(true)
   const [showNoteNames, setShowNoteNames] = useState(false)
   const [keyWidth, setKeyWidth] = useState(48)
-  const [scrollX, setScrollX] = useState(0)
-  const [activeNotes, setActiveNotes] = useState<Set<number>>(new Set())
 
   const audioCtxRef = useRef<AudioContext | null>(null)
   const activeOscRef = useRef(new Map<number, OscEntry>())
 
-  // Tracks which pointerIds are currently pressed (pointerdown but not yet up)
+  // Per-pointer tracking
   const activePointersRef = useRef(new Set<number>())
-  // Locked mode: maps pointerId → the midi note it is currently pressing
-  const pointerNotesRef = useRef(new Map<number, number>())
-
-  // Scroll mode (unlocked): single-pointer scroll tracking
+  const pointerNotesRef = useRef(new Map<number, number>()) // pointerId → midi (locked mode)
   const scrollPointerRef = useRef<number | null>(null)
   const dragStartXRef = useRef(0)
   const dragStartScrollRef = useRef(0)
-  // In unlocked mode, a tap (below drag threshold) plays a note; dragging scrolls instead
   const isDraggingRef = useRef(false)
-  const tapNoteRef = useRef<number | null>(null) // note playing during unlocked tap
+  const tapNoteRef = useRef<number | null>(null)
 
+  // DOM refs — direct manipulation avoids React re-renders during play/scroll
   const pianoWrapperRef = useRef<HTMLDivElement>(null)
+  const pianoInnerRef = useRef<HTMLDivElement>(null)
+  const keyElemsRef = useRef(new Map<number, HTMLElement>()) // midi → key DOM element
+  const wrapperRectRef = useRef<DOMRect | null>(null) // cached per gesture
+
+  // Value refs (avoid stale closures in native listeners)
   const scrollXRef = useRef(0)
   const keyWidthRef = useRef(48)
   const lockedRef = useRef(true)
@@ -130,14 +127,15 @@ export default function PianoApp() {
     osc2.start(now)
 
     activeOscRef.current.set(midi, { osc1, osc2, gain })
-    setActiveNotes(prev => new Set([...prev, midi]))
+    // Direct DOM — no state update, no re-render
+    keyElemsRef.current.get(midi)?.setAttribute('data-active', '')
   }
 
   function noteOff(midi: number) {
     const entry = activeOscRef.current.get(midi)
     if (!entry) return
     activeOscRef.current.delete(midi)
-    setActiveNotes(prev => { const s = new Set(prev); s.delete(midi); return s })
+    keyElemsRef.current.get(midi)?.removeAttribute('data-active')
 
     const ctx = audioCtxRef.current
     if (!ctx || ctx.state === 'closed') return
@@ -165,29 +163,20 @@ export default function PianoApp() {
     }
   }, [])
 
-  // Wheel scroll — must be a non-passive native listener to allow preventDefault
-  useEffect(() => {
-    const wrapper = pianoWrapperRef.current
-    if (!wrapper) return
-    function onWheel(e: WheelEvent) {
-      if (lockedRef.current) return
-      e.preventDefault()
-      const maxScroll = Math.max(0, TOTAL_WHITE_KEYS * keyWidthRef.current - wrapper!.clientWidth)
-      const delta = e.deltaX !== 0 ? e.deltaX : e.deltaY
-      const next = clamp(scrollXRef.current + delta, 0, maxScroll)
-      scrollXRef.current = next
-      setScrollX(next)
+  // ── Scroll helper ─────────────────────────────────────────────────────────
+
+  function applyScroll(next: number) {
+    scrollXRef.current = next
+    if (pianoInnerRef.current) {
+      pianoInnerRef.current.style.transform = `translateX(${-next}px)`
     }
-    wrapper.addEventListener('wheel', onWheel, { passive: false })
-    return () => wrapper.removeEventListener('wheel', onWheel)
-  }, [])
+  }
 
   // ── Hit testing ─────────────────────────────────────────────────────────────
 
   function midiFromPointer(clientX: number, clientY: number): number | null {
-    const wrapper = pianoWrapperRef.current
-    if (!wrapper) return null
-    const rect = wrapper.getBoundingClientRect()
+    const rect = wrapperRectRef.current
+    if (!rect) return null
     const relX = clientX - rect.left + scrollXRef.current
     const relY = clientY - rect.top
     if (relX < 0 || relY < 0 || relY > rect.height) return null
@@ -201,12 +190,10 @@ export default function PianoApp() {
     const posInKey = relX - whiteIdx * kw
 
     if (inBlackZone) {
-      // Right-side black key (overhangs into next white key's territory)
       if (posInKey >= kw - Math.round(bkw / 2)) {
         const bk = BLACK_KEY_MAP.get(whiteIdx + 1)
         if (bk) return bk.midi
       }
-      // Left-side black key (overhangs from previous white key)
       if (posInKey <= Math.round(bkw / 2)) {
         const bk = BLACK_KEY_MAP.get(whiteIdx)
         if (bk) return bk.midi
@@ -216,101 +203,124 @@ export default function PianoApp() {
     return WHITE_KEYS[whiteIdx].midi
   }
 
-  // ── Pointer handlers ────────────────────────────────────────────────────────
+  // ── Pointer handlers — native listeners for minimal latency ─────────────────
+  // All handler functions only reference refs (not state), so stale closures
+  // are not an issue despite the empty deps array.
 
-  function handlePointerDown(e: React.PointerEvent<HTMLDivElement>) {
-    e.currentTarget.setPointerCapture(e.pointerId)
-    activePointersRef.current.add(e.pointerId)
+  useEffect(() => {
+    const wrapper = pianoWrapperRef.current
+    if (!wrapper) return
 
-    if (lockedRef.current) {
-      const midi = midiFromPointer(e.clientX, e.clientY)
-      if (midi !== null) {
-        noteOn(midi)
-        pointerNotesRef.current.set(e.pointerId, midi)
-      }
-    } else {
-      scrollPointerRef.current = e.pointerId
-      dragStartXRef.current = e.clientX
-      dragStartScrollRef.current = scrollXRef.current
-      isDraggingRef.current = false
-      // Play the tapped note immediately; cancel it if the gesture becomes a drag
-      const midi = midiFromPointer(e.clientX, e.clientY)
-      if (midi !== null) {
-        noteOn(midi)
-        tapNoteRef.current = midi
-      }
-    }
-  }
+    function onDown(e: PointerEvent) {
+      wrapper!.setPointerCapture(e.pointerId)
+      wrapperRectRef.current = wrapper!.getBoundingClientRect() // cache once per gesture
+      activePointersRef.current.add(e.pointerId)
 
-  function handlePointerMove(e: React.PointerEvent<HTMLDivElement>) {
-    if (!activePointersRef.current.has(e.pointerId)) return
-
-    if (lockedRef.current) {
-      // Slide across keys: release old key, press new key
-      const prevMidi = pointerNotesRef.current.get(e.pointerId)
-      const midi = midiFromPointer(e.clientX, e.clientY)
-
-      if (midi !== prevMidi) {
-        if (prevMidi !== undefined) noteOff(prevMidi)
+      if (lockedRef.current) {
+        const midi = midiFromPointer(e.clientX, e.clientY)
         if (midi !== null) {
           noteOn(midi)
           pointerNotesRef.current.set(e.pointerId, midi)
-        } else {
-          pointerNotesRef.current.delete(e.pointerId)
         }
-      }
-    } else {
-      if (scrollPointerRef.current !== e.pointerId) return
-
-      if (!isDraggingRef.current) {
-        const dx = Math.abs(e.clientX - dragStartXRef.current)
-        if (dx < DRAG_THRESHOLD) return // still within tap zone
-        // Crossed threshold — become a scroll drag and release the tap note
-        isDraggingRef.current = true
-        if (tapNoteRef.current !== null) {
-          noteOff(tapNoteRef.current)
-          tapNoteRef.current = null
-        }
-      }
-
-      const wrapper = pianoWrapperRef.current
-      if (!wrapper) return
-      const maxScroll = Math.max(0, TOTAL_WHITE_KEYS * keyWidthRef.current - wrapper.clientWidth)
-      const next = clamp(dragStartScrollRef.current - (e.clientX - dragStartXRef.current), 0, maxScroll)
-      scrollXRef.current = next
-      setScrollX(next)
-    }
-  }
-
-  function handlePointerUp(e: React.PointerEvent<HTMLDivElement>) {
-    activePointersRef.current.delete(e.pointerId)
-    if (lockedRef.current) {
-      const prevMidi = pointerNotesRef.current.get(e.pointerId)
-      if (prevMidi !== undefined) noteOff(prevMidi)
-      pointerNotesRef.current.delete(e.pointerId)
-    } else {
-      if (scrollPointerRef.current === e.pointerId) {
-        scrollPointerRef.current = null
-        if (tapNoteRef.current !== null) {
-          noteOff(tapNoteRef.current)
-          tapNoteRef.current = null
-        }
+      } else {
+        scrollPointerRef.current = e.pointerId
+        dragStartXRef.current = e.clientX
+        dragStartScrollRef.current = scrollXRef.current
         isDraggingRef.current = false
+        const midi = midiFromPointer(e.clientX, e.clientY)
+        if (midi !== null) {
+          noteOn(midi)
+          tapNoteRef.current = midi
+        }
       }
     }
-  }
 
-  function handlePointerLeave() {
-    // Fallback: release everything when capture is lost or pointer exits
-    noteOffAll()
-    activePointersRef.current.clear()
-    pointerNotesRef.current.clear()
-    scrollPointerRef.current = null
-    tapNoteRef.current = null
-    isDraggingRef.current = false
-  }
+    function onMove(e: PointerEvent) {
+      if (!activePointersRef.current.has(e.pointerId)) return
 
-  // ── Scroll positioning ───────────────────────────────────────────────────────
+      if (lockedRef.current) {
+        const prevMidi = pointerNotesRef.current.get(e.pointerId)
+        const midi = midiFromPointer(e.clientX, e.clientY)
+        if (midi !== prevMidi) {
+          if (prevMidi !== undefined) noteOff(prevMidi)
+          if (midi !== null) {
+            noteOn(midi)
+            pointerNotesRef.current.set(e.pointerId, midi)
+          } else {
+            pointerNotesRef.current.delete(e.pointerId)
+          }
+        }
+      } else {
+        if (scrollPointerRef.current !== e.pointerId) return
+        if (!isDraggingRef.current) {
+          if (Math.abs(e.clientX - dragStartXRef.current) < DRAG_THRESHOLD) return
+          isDraggingRef.current = true
+          if (tapNoteRef.current !== null) {
+            noteOff(tapNoteRef.current)
+            tapNoteRef.current = null
+          }
+        }
+        const maxScroll = Math.max(0, TOTAL_WHITE_KEYS * keyWidthRef.current - wrapper!.clientWidth)
+        applyScroll(clamp(dragStartScrollRef.current - (e.clientX - dragStartXRef.current), 0, maxScroll))
+      }
+    }
+
+    function onUp(e: PointerEvent) {
+      activePointersRef.current.delete(e.pointerId)
+      if (lockedRef.current) {
+        const prevMidi = pointerNotesRef.current.get(e.pointerId)
+        if (prevMidi !== undefined) noteOff(prevMidi)
+        pointerNotesRef.current.delete(e.pointerId)
+      } else {
+        if (scrollPointerRef.current === e.pointerId) {
+          scrollPointerRef.current = null
+          if (tapNoteRef.current !== null) {
+            noteOff(tapNoteRef.current)
+            tapNoteRef.current = null
+          }
+          isDraggingRef.current = false
+        }
+      }
+    }
+
+    function onLeave() {
+      noteOffAll()
+      activePointersRef.current.clear()
+      pointerNotesRef.current.clear()
+      scrollPointerRef.current = null
+      tapNoteRef.current = null
+      isDraggingRef.current = false
+    }
+
+    wrapper.addEventListener('pointerdown', onDown)
+    wrapper.addEventListener('pointermove', onMove)
+    wrapper.addEventListener('pointerup', onUp)
+    wrapper.addEventListener('pointerleave', onLeave)
+    return () => {
+      wrapper.removeEventListener('pointerdown', onDown)
+      wrapper.removeEventListener('pointermove', onMove)
+      wrapper.removeEventListener('pointerup', onUp)
+      wrapper.removeEventListener('pointerleave', onLeave)
+    }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Wheel scroll ──────────────────────────────────────────────────────────────
+
+  useEffect(() => {
+    const wrapper = pianoWrapperRef.current
+    if (!wrapper) return
+    function onWheel(e: WheelEvent) {
+      if (lockedRef.current) return
+      e.preventDefault()
+      const maxScroll = Math.max(0, TOTAL_WHITE_KEYS * keyWidthRef.current - wrapper!.clientWidth)
+      const delta = e.deltaX !== 0 ? e.deltaX : e.deltaY
+      applyScroll(clamp(scrollXRef.current + delta, 0, maxScroll))
+    }
+    wrapper.addEventListener('wheel', onWheel, { passive: false })
+    return () => wrapper.removeEventListener('wheel', onWheel)
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Scroll positioning ────────────────────────────────────────────────────────
 
   const isMountedRef = useRef(false)
 
@@ -323,18 +333,15 @@ export default function PianoApp() {
 
     let sx: number
     if (!isMountedRef.current) {
-      // Initial mount: center on C4
       isMountedRef.current = true
       sx = clamp(C4_WHITE_INDEX * newKw - ww / 2 + newKw / 2, 0, maxScroll)
     } else {
-      // Key width change: keep the same piano position centered in the viewport
       const centeredAt = (scrollXRef.current + ww / 2) / keyWidthRef.current
       sx = clamp(centeredAt * newKw - ww / 2, 0, maxScroll)
     }
 
-    scrollXRef.current = sx
     keyWidthRef.current = newKw
-    setScrollX(sx)
+    applyScroll(sx)
   }, [keyWidth]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Render ──────────────────────────────────────────────────────────────────
@@ -395,22 +402,14 @@ export default function PianoApp() {
       <div
         ref={pianoWrapperRef}
         className={`${styles.pianoWrapper} ${locked ? styles.cursorPlay : styles.cursorScroll}`}
-        onPointerDown={handlePointerDown}
-        onPointerMove={handlePointerMove}
-        onPointerUp={handlePointerUp}
-        onPointerLeave={handlePointerLeave}
       >
         <div
+          ref={pianoInnerRef}
           className={styles.piano}
-          style={{
-            width: TOTAL_WHITE_KEYS * keyWidth,
-            transform: `translateX(${-scrollX}px)`,
-          }}
+          style={{ width: TOTAL_WHITE_KEYS * keyWidth }}
         >
           {WHITE_KEYS.map((wk, W) => {
             const bk = BLACK_KEY_MAP.get(W + 1)
-            const wActive = activeNotes.has(wk.midi)
-            const bActive = bk != null && activeNotes.has(bk.midi)
             const octave = Math.floor(wk.midi / 12) - 1
             const isC = wk.midi % 12 === 0
             const noteLabel = showNoteNames
@@ -420,18 +419,18 @@ export default function PianoApp() {
             return (
               <div
                 key={wk.midi}
-                className={`${styles.whiteKey} ${wActive ? styles.whiteKeyActive : ''}`}
+                ref={el => { if (el) keyElemsRef.current.set(wk.midi, el as HTMLElement) }}
+                className={styles.whiteKey}
                 style={{ width: keyWidth }}
-                data-midi={wk.midi}
               >
                 {bk && (
                   <div
-                    className={`${styles.blackKey} ${bActive ? styles.blackKeyActive : ''}`}
+                    ref={el => { if (el) keyElemsRef.current.set(bk.midi, el as HTMLElement) }}
+                    className={styles.blackKey}
                     style={{
                       width: blackKeyWidth,
                       left: keyWidth - Math.round(blackKeyWidth / 2),
                     }}
-                    data-midi={bk.midi}
                   />
                 )}
                 {noteLabel && (

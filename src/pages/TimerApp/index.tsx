@@ -237,19 +237,6 @@ export default function TimerApp() {
     })
   }
 
-  function startCountdownSeconds(seconds: number) {
-    if (typeof Notification !== 'undefined' && Notification.permission === 'default') {
-      Notification.requestPermission()
-    }
-    setTimer({
-      mode: 'running',
-      type: 'countdown',
-      totalMs: seconds * 1000,
-      startedAt: Date.now(),
-      accumulatedMs: 0,
-    })
-  }
-
   function startStopwatch() {
     setTimer({
       mode: 'running',
@@ -440,9 +427,6 @@ export default function TimerApp() {
       <div className={styles.section}>
         <div className={styles.sectionLabel}>countdown</div>
         <div className={styles.presetGrid}>
-          <button className={styles.presetBtn} onClick={() => startCountdownSeconds(3)}>
-            3s
-          </button>
           {PRESETS.map(m => (
             <button key={m} className={styles.presetBtn} onClick={() => startCountdown(m)}>
               {m}m

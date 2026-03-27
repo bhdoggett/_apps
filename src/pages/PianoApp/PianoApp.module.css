@@ -68,6 +68,12 @@
   height: 160px;
   touch-action: none;
   user-select: none;
+  border: 2px solid #1a1a1a;
+}
+
+:global([data-theme="light"]) .pianoWrapper {
+  background: #555;
+  border-color: #555;
 }
 
 .cursorPlay {
@@ -92,14 +98,14 @@
   position: relative;
   height: 100%;
   background: #f5f5ec;
-  border: 1px solid var(--rule);
+  border: 1px solid #000;
   border-top: none;
   border-radius: 0 0 4px 4px;
   box-sizing: border-box;
   pointer-events: none;
 }
 
-.whiteKeyActive {
+.whiteKey[data-active] {
   background: #c8d4f0;
 }
 
@@ -113,7 +119,7 @@
   pointer-events: none;
 }
 
-.blackKeyActive {
+.blackKey[data-active] {
   background: #3a4870;
 }
 
