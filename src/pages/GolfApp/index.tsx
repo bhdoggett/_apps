@@ -1,4 +1,4 @@
-import { useReducer, useEffect } from 'react'
+import { useReducer, useEffect, useState, useRef } from 'react'
 import AppHeader from '../../components/AppHeader'
 import styles from './GolfApp.module.css'
 
@@ -137,6 +137,7 @@ function vsParLabel(n: number): string {
 }
 
 function scoreClass(score: number, par: number): string {
+  if (score === 1) return styles.holeInOne
   const d = score - par
   if (d <= -2) return styles.eagle
   if (d === -1) return styles.birdie
@@ -157,13 +158,34 @@ function loadState(): State {
   }
 }
 
+const about = (
+  <>
+    <p>Track scores for multiple players across 9 or 18 holes.</p>
+    <ul>
+      <li>Players are assigned a random character name — tap to rename</li>
+      <li>Tap a par value in the scorecard header to cycle between 3, 4, and 5</li>
+      <li>Tap any score cell to enter or edit a score for that hole</li>
+      <li>Scores above 11 can be entered with the _ button in the score picker</li>
+      <li>Hole-in-ones are highlighted distinctly from eagles</li>
+    </ul>
+  </>
+)
+
 export default function GolfApp() {
   const [state, dispatch] = useReducer(reducer, undefined, loadState)
   const { phase, holeCount, pars, players, activeCell } = state
+  const [customMode, setCustomMode] = useState(false)
+  const [customVal, setCustomVal] = useState('')
+  const customInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify({ v: 1, state }))
   }, [state])
+
+  useEffect(() => {
+    setCustomMode(false)
+    setCustomVal('')
+  }, [activeCell])
 
   const activePlayer = activeCell ? (players.find(p => p.id === activeCell.playerId) ?? null) : null
   const activeScore = activeCell && activePlayer ? (activePlayer.scores[activeCell.hole] ?? null) : null
@@ -175,16 +197,7 @@ export default function GolfApp() {
       <div className={styles.app}>
         <AppHeader
           title="golf"
-          about={
-            <>
-              <p>Track scores for multiple players across 9 or 18 holes.</p>
-              <ul>
-                <li>Players are assigned a random character name — tap to rename</li>
-                <li>Tap a par value in the scorecard header to cycle between 3, 4, and 5</li>
-                <li>Tap any score cell to enter or edit a score for that hole</li>
-              </ul>
-            </>
-          }
+          about={about}
         />
 
         <div className={styles.section}>
@@ -245,7 +258,7 @@ export default function GolfApp() {
 
     return (
       <div className={styles.app}>
-        <AppHeader title="golf" />
+        <AppHeader title="golf" about={about} />
 
         <div className={styles.doneIntro}>
           <span className={styles.label}>{holeCount} holes · par {parTotal}</span>
@@ -284,6 +297,7 @@ export default function GolfApp() {
     <div className={styles.app}>
       <AppHeader
         title="golf"
+        about={about}
         meta={<span className={styles.metaLabel}>{holeCount} holes · par {parTotal}</span>}
       />
 
@@ -370,7 +384,7 @@ export default function GolfApp() {
               <span>par {activePar}</span>
             </div>
             <div className={styles.pickerGrid}>
-              {Array.from({ length: 12 }, (_, i) => i + 1).map(s => (
+              {Array.from({ length: 11 }, (_, i) => i + 1).map(s => (
                 <button
                   key={s}
                   className={[styles.pickBtn, activeScore === s ? styles.pickBtnOn : ''].filter(Boolean).join(' ')}
@@ -380,7 +394,47 @@ export default function GolfApp() {
                   }}
                 >{s}</button>
               ))}
+              <button
+                className={[styles.pickBtn, styles.pickBtnMore, (customMode || (activeScore !== null && activeScore > 11)) ? styles.pickBtnOn : ''].filter(Boolean).join(' ')}
+                onClick={() => {
+                  setCustomMode(true)
+                  setCustomVal(activeScore !== null && activeScore > 11 ? String(activeScore) : '')
+                  requestAnimationFrame(() => customInputRef.current?.focus())
+                }}
+              >_</button>
             </div>
+            {customMode && (
+              <div className={styles.customRow}>
+                <input
+                  ref={customInputRef}
+                  type="number"
+                  className={styles.customInput}
+                  value={customVal}
+                  min={1}
+                  onChange={e => setCustomVal(e.target.value)}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter') {
+                      const n = parseInt(customVal)
+                      if (n >= 1) {
+                        dispatch({ type: 'SET_SCORE', playerId: activeCell.playerId, hole: activeCell.hole, score: n })
+                        dispatch({ type: 'CLEAR_ACTIVE' })
+                      }
+                    }
+                    if (e.key === 'Escape') setCustomMode(false)
+                  }}
+                />
+                <button
+                  className={styles.customOkBtn}
+                  onClick={() => {
+                    const n = parseInt(customVal)
+                    if (n >= 1) {
+                      dispatch({ type: 'SET_SCORE', playerId: activeCell.playerId, hole: activeCell.hole, score: n })
+                      dispatch({ type: 'CLEAR_ACTIVE' })
+                    }
+                  }}
+                >ok</button>
+              </div>
+            )}
             {activeScore !== null && (
               <button
                 className={styles.clearBtn}
