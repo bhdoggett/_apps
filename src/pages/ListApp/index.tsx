@@ -298,8 +298,7 @@ export default function ListApp() {
 
   return (
     <div className={[styles.app, zoomed ? styles.zoomed : ''].filter(Boolean).join(' ')}>
-      <div className={styles.header}>
-        <AppHeader
+      <AppHeader
           title="list"
           meta={
             <div className={styles.headerMeta}>
@@ -345,7 +344,6 @@ export default function ListApp() {
             </ul>
           </>}
         />
-      </div>
 
       <form
         className={[styles.addForm, fileDragOver ? styles.addFormDragOver : ''].filter(Boolean).join(' ')}

@@ -50,7 +50,7 @@
 }
 
 @media (orientation: landscape) and (pointer: coarse) {
-  .focusTopBar {
+  .topBar {
     display: none;
   }
 }
