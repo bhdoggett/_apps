@@ -144,7 +144,6 @@
 .scorecardWrap {
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
-  margin: 0 -2rem;
 }
 
 .scorecard {
@@ -274,6 +273,15 @@
 }
 
 /* Traditional scorecard indicators */
+.holeInOne {
+  color: var(--bg);
+  background: var(--fg);
+  border: 1px solid var(--fg);
+  border-radius: 50%;
+  outline: 1px solid var(--fg);
+  outline-offset: 2px;
+}
+
 .eagle {
   color: var(--fg);
   border: 1px solid var(--fg);
@@ -411,6 +419,60 @@
   color: var(--bg);
 }
 
+.pickBtnMore {
+  font-family: var(--font-mono);
+  font-size: 1rem;
+  font-weight: normal;
+  color: var(--dim);
+  border-color: var(--dim);
+}
+
+.customRow {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-top: 0.5rem;
+}
+
+.customInput {
+  flex: 1;
+  background: none;
+  border: none;
+  border-bottom: 1px solid var(--muted);
+  outline: none;
+  font-family: var(--font-display);
+  font-size: 1.15rem;
+  font-weight: 900;
+  color: var(--fg);
+  padding: 0.25rem 0;
+  caret-color: var(--fg);
+  -moz-appearance: textfield;
+}
+
+.customInput::-webkit-inner-spin-button,
+.customInput::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+}
+
+.customOkBtn {
+  background: none;
+  border: 1px solid var(--dim);
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 0.6rem;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  padding: 0.4rem 0.75rem;
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s, background 0.15s;
+}
+
+.customOkBtn:hover {
+  border-color: var(--fg);
+  color: var(--bg);
+  background: var(--fg);
+}
+
 .clearBtn {
   background: none;
   border: none;
@@ -525,4 +587,5 @@
     max-width: 100%;
     padding: 1.5rem;
   }
+
 }
