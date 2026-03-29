@@ -83,3 +83,23 @@
   text-transform: uppercase;
   padding: 0.45rem 0.85rem;
 }
+
+@media (orientation: landscape) and (pointer: coarse) {
+  .app {
+    max-width: 100%;
+    padding: 0.5rem 1.5rem 1rem;
+    justify-content: center;
+  }
+
+  .display {
+    font-size: clamp(5rem, 22vw, 14rem);
+  }
+
+  .adjBtn {
+    font-size: clamp(1.5rem, 5vw, 3rem);
+  }
+
+  .btnRowClear {
+    display: none;
+  }
+}
