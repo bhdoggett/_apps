@@ -234,8 +234,8 @@ export default function TunerApp() {
     }
   }
 
-  const changeNote = (delta: number) => {
-    const next = Math.max(36, Math.min(84, selectedMidi + delta)) // C2–C6
+  const changeNote = (midi: number) => {
+    const next = Math.max(36, Math.min(84, midi)) // C2–C6
     setSelectedMidi(next)
     if (isPlaying && oscillatorRef.current && playCtxRef.current) {
       oscillatorRef.current.frequency.setTargetAtTime(
@@ -262,19 +262,38 @@ export default function TunerApp() {
         </>}
       />
 
-      <div className={styles.modeRow}>
+      <div className={styles.controls}>
         <button
           className={[styles.modeBtn, mode === 'listen' ? styles.modeBtnActive : ''].filter(Boolean).join(' ')}
           onClick={() => { stopOscillator(); setIsPlaying(false); setMode('listen') }}
+          aria-label="listen"
         >
-          listen
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+            <rect x="4.5" y="1.5" width="5" height="7" rx="2.5" fill="currentColor"/>
+            <path d="M2.5 7 C2.5 11 11.5 11 11.5 7" stroke="currentColor" strokeWidth="1.2" fill="none" strokeLinecap="round"/>
+            <line x1="7" y1="11" x2="7" y2="13" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
+            <line x1="4.5" y1="13" x2="9.5" y2="13" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
+          </svg>
         </button>
         <button
           className={[styles.modeBtn, mode === 'play' ? styles.modeBtnActive : ''].filter(Boolean).join(' ')}
           onClick={() => { stopOscillator(); setIsPlaying(false); setMode('play') }}
+          aria-label="play"
         >
-          play
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+            <circle cx="5" cy="7" r="2.5" fill="currentColor"/>
+            <path d="M8.5 4.5 C10.2 5.5 10.2 8.5 8.5 9.5" stroke="currentColor" strokeWidth="1.2" fill="none" strokeLinecap="round"/>
+            <path d="M10.2 3 C12.8 4.5 12.8 9.5 10.2 11" stroke="currentColor" strokeWidth="1.2" fill="none" strokeLinecap="round"/>
+          </svg>
         </button>
+        {mode === 'play' && (
+          <button
+            className={[styles.btn, isPlaying ? styles.btnActive : ''].filter(Boolean).join(' ')}
+            onClick={togglePlay}
+          >
+            {isPlaying ? '■' : '▶'}
+          </button>
+        )}
       </div>
 
       {mode === 'listen' && (
@@ -329,19 +348,34 @@ export default function TunerApp() {
 
       {mode === 'play' && (
         <>
-          <div className={styles.btnRow}>
-            <button
-              className={[styles.btn, isPlaying ? styles.btnActive : ''].filter(Boolean).join(' ')}
-              onClick={togglePlay}
-            >
-              {isPlaying ? '■' : '▶'}
-            </button>
-          </div>
-
           <div className={styles.notePicker}>
-            <button className={styles.stepBtn} onClick={() => changeNote(-1)}>←</button>
-            <span className={`${styles.noteName} ${styles.notePickerName}`}>{midiToName(selectedMidi)}</span>
-            <button className={styles.stepBtn} onClick={() => changeNote(1)}>→</button>
+            <button className={styles.stepBtn} onClick={() => changeNote(selectedMidi - 1)}>−</button>
+            <span
+              className={`${styles.noteName} ${styles.notePickerName} ${styles.noteDrag}`}
+              onPointerDown={(e) => {
+                e.preventDefault()
+                const startY = e.clientY
+                const startMidi = selectedMidi
+                let dragging = false
+                const onMove = (ev: PointerEvent) => {
+                  if (!dragging && Math.abs(ev.clientY - startY) < 3) return
+                  dragging = true
+                  const delta = Math.round((startY - ev.clientY) / 1.5)
+                  changeNote(startMidi + delta)
+                }
+                const onUp = () => {
+                  document.removeEventListener('pointermove', onMove)
+                  document.removeEventListener('pointerup', onUp)
+                  document.removeEventListener('pointercancel', onUp)
+                }
+                document.addEventListener('pointermove', onMove)
+                document.addEventListener('pointerup', onUp)
+                document.addEventListener('pointercancel', onUp)
+              }}
+            >
+              {midiToName(selectedMidi)}
+            </span>
+            <button className={styles.stepBtn} onClick={() => changeNote(selectedMidi + 1)}>+</button>
           </div>
 
           <div className={`${styles.row} ${styles.rowCompact}`}>
