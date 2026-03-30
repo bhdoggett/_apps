@@ -3,7 +3,7 @@ import AppHeader from "../../components/AppHeader";
 import ActionButton from "../../components/ActionButton";
 import styles from "./TextApp.module.css";
 
-const STORAGE_KEY = "benapps.text.v1";
+const STORAGE_KEY = "_apps.text.v1";
 
 function formatTime(minutes: number): string {
   const totalSeconds = Math.round(minutes * 60);

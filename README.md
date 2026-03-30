@@ -1,4 +1,4 @@
-# benapps
+# _apps
 
 A personal collection of single-purpose mini-apps.
 

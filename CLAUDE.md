@@ -1,4 +1,4 @@
-# benapps — Claude Context
+# _apps — Claude Context
 
 Personal collection of single-purpose mini-apps. React 18 + TypeScript + Vite + React Router v6. No backend, no state management library. Dark mode default; light mode via `data-theme="light"` on `<html>`.
 

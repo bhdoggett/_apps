@@ -1,4 +1,4 @@
-# Contributing to benapps
+# Contributing to _apps
 
 A personal collection of single-purpose mini-apps. Each app is self-contained, minimal, and works well in dark and light mode.
 

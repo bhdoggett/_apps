@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import AppHeader from '../../components/AppHeader'
 import styles from './CountApp.module.css'
 
-const STORAGE_KEY = 'benapps.count.v1'
+const STORAGE_KEY = '_apps.count.v1'
 
 function readInitialCount(): number {
   if (typeof window === 'undefined') return 0

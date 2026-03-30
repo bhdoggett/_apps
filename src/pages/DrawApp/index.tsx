@@ -8,7 +8,7 @@ import styles from './DrawApp.module.css'
 
 type HistoryEntry = { data: ImageData | null; blob: Blob | null; w: number; h: number }
 
-const DRAW_DB_NAME = 'benapps'
+const DRAW_DB_NAME = '_apps'
 const DRAW_DB_VERSION = 1
 const DRAW_META_STORE = 'draw_meta'
 const DRAW_ENTRY_STORE = 'draw_entries'

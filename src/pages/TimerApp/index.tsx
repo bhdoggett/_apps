@@ -23,7 +23,7 @@ const idle: TimerState = {
   accumulatedMs: 0,
 }
 
-const STORAGE_KEY = 'benapps.timer.v1'
+const STORAGE_KEY = '_apps.timer.v1'
 
 type PersistedTimer = {
   v: 1

@@ -2,7 +2,7 @@ import { useReducer, useEffect, useState, useRef } from 'react'
 import AppHeader from '../../components/AppHeader'
 import styles from './GolfApp.module.css'
 
-const STORAGE_KEY = 'benapps.golf.v1'
+const STORAGE_KEY = '_apps.golf.v1'
 
 const NAMES = [
   'Aldric', 'Bramble', 'Corvus', 'Draven', 'Ember',

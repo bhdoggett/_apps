@@ -24,7 +24,7 @@ import AboutPanel from './components/AboutPanel'
 import { AboutProvider, useAbout } from './contexts/AboutContext'
 import styles from './App.module.css'
 
-const TIMER_STORAGE_KEY = 'benapps.timer.v1'
+const TIMER_STORAGE_KEY = '_apps.timer.v1'
 
 type TimerMode = 'idle' | 'running' | 'paused' | 'done'
 type TimerType = 'countdown' | 'stopwatch'
