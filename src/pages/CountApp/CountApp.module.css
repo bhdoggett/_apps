@@ -9,6 +9,23 @@
   min-height: 100vh;
 }
 
+.content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.focusOverlay {
+  position: fixed;
+  inset: 0;
+  background: var(--bg);
+  z-index: 120;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
 .countRow {
   display: flex;
   align-items: center;
@@ -101,5 +118,9 @@
 
   .btnRowClear {
     display: none;
+  }
+
+  .countRow {
+    margin-bottom: 0;
   }
 }
