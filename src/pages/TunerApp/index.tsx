@@ -19,6 +19,19 @@ const NOTE_NAMES = [
 const EMA_ALPHA = 0.35;
 const STABLE_FRAMES = 3;
 
+function useIsLandscapeMobile() {
+  const [is, setIs] = useState(false)
+  useEffect(() => {
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return
+    const media = window.matchMedia('(orientation: landscape) and (pointer: coarse)')
+    const update = () => setIs(media.matches)
+    update()
+    media.addEventListener?.('change', update)
+    return () => media.removeEventListener?.('change', update)
+  }, [])
+  return is
+}
+
 function parabolicPeak(bins: Float32Array, k: number): number {
   if (k <= 0 || k >= bins.length - 1) return k;
   const a = bins[k - 1],
@@ -77,6 +90,7 @@ const midiToName = (midi: number) => {
 };
 
 export default function TunerApp() {
+  const isLandscapeMobile = useIsLandscapeMobile()
   const [mode, setMode] = useState<"listen" | "play">("listen");
 
   // Listen mode state
@@ -272,31 +286,8 @@ export default function TunerApp() {
   const inTune = cents !== null && Math.abs(cents) <= 5;
   const needlePercent = cents !== null ? 50 + cents : 50;
 
-  return (
-    <div className={styles.app}>
-      <AppHeader
-        title="tuner"
-        about={
-          <>
-            <p>
-              Press mic button to use chromatic tuner or the tone generator to
-              tune by ear.
-            </p>
-            <ul>
-              <li>Play one note at a time for best results</li>
-              <li>
-                The chromatic tuner shows cents sharp or flat from the nearest
-                pitch
-              </li>
-            </ul>
-            <p>
-              In the tone generator, drag the note name or use + / − to change
-              the reference pitch.
-            </p>
-          </>
-        }
-      />
-
+  const inner = (
+    <div className={styles.content}>
       <div className={styles.controls}>
         <button
           className={[
@@ -518,6 +509,38 @@ export default function TunerApp() {
           </div>
         </>
       )}
+    </div>
+  )
+
+  if (isLandscapeMobile) {
+    return <div className={styles.focusOverlay}>{inner}</div>
+  }
+
+  return (
+    <div className={styles.app}>
+      <AppHeader
+        title="tuner"
+        about={
+          <>
+            <p>
+              Press mic button to use chromatic tuner or the tone generator to
+              tune by ear.
+            </p>
+            <ul>
+              <li>Play one note at a time for best results</li>
+              <li>
+                The chromatic tuner shows cents sharp or flat from the nearest
+                pitch
+              </li>
+            </ul>
+            <p>
+              In the tone generator, drag the note name or use + / − to change
+              the reference pitch.
+            </p>
+          </>
+        }
+      />
+      {inner}
     </div>
   );
 }
