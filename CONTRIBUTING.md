@@ -198,7 +198,43 @@ When a touch device rotates to landscape, the app header and layout top bar hide
 
 Use `(orientation: landscape) and (pointer: coarse)` — this targets touch devices only, so desktop browsers in a narrow window are unaffected.
 
-Two techniques, often combined:
+**Preferred: full-screen overlay pattern**
+
+For apps where landscape significantly changes the experience, use the shared `useIsLandscapeMobile` hook (`src/hooks/useIsLandscapeMobile.ts`) to render a fixed full-screen overlay instead of the normal page layout:
+
+```ts
+import { useIsLandscapeMobile } from '../../hooks/useIsLandscapeMobile'
+
+const isLandscapeMobile = useIsLandscapeMobile()
+
+const inner = <div className={styles.content}>...</div>
+
+if (isLandscapeMobile) {
+  return <div className={styles.focusOverlay}>{inner}</div>
+}
+
+return (
+  <div className={styles.app}>
+    <AppHeader title="appname" />
+    {inner}
+  </div>
+)
+```
+
+```css
+.focusOverlay {
+  position: fixed;
+  inset: 0;
+  background: var(--bg);
+  z-index: 120;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+```
+
+**CSS-only techniques** — useful alongside the overlay or for lighter adjustments:
 
 **1. Scale primary content with `vw` + `clamp()`** — lets the key number or display fill the wider screen naturally:
 

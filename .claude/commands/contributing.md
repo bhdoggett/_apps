@@ -128,6 +128,42 @@ input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; }
 
 Use `@media (orientation: landscape) and (pointer: coarse)` — targets touch devices, not desktop narrow windows.
 
+**Full-screen overlay pattern** (preferred for interactive apps):
+
+Use the shared hook and render a `focusOverlay` in place of the normal `.app` container:
+
+```ts
+import { useIsLandscapeMobile } from '../../hooks/useIsLandscapeMobile'
+
+const isLandscapeMobile = useIsLandscapeMobile()
+
+const inner = <div className={styles.content}>...</div>
+
+if (isLandscapeMobile) {
+  return <div className={styles.focusOverlay}>{inner}</div>
+}
+
+return (
+  <div className={styles.app}>
+    <AppHeader title="appname" />
+    {inner}
+  </div>
+)
+```
+
+```css
+.focusOverlay {
+  position: fixed;
+  inset: 0;
+  background: var(--bg);
+  z-index: 120;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+```
+
 **Scale primary content:**
 ```css
 .display {
