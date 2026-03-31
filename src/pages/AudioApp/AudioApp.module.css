@@ -7,6 +7,28 @@
   flex-direction: column;
 }
 
+.content {
+  display: flex;
+  flex-direction: column;
+}
+
+.focusOverlay {
+  position: fixed;
+  inset: 0;
+  background: var(--bg);
+  z-index: 120;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem 2rem;
+}
+
+.focusOverlay .content {
+  width: 100%;
+  max-width: 620px;
+}
+
 .fileMeta {
   display: flex;
   justify-content: space-between;
@@ -57,6 +79,9 @@
   cursor: pointer;
   transition: border-color 0.15s, color 0.15s;
   flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .playBtn:hover {
@@ -156,12 +181,26 @@
   margin-bottom: 1.5rem;
 }
 
+.transformSection {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  margin-bottom: 1.5rem;
+}
+
 .transformRow {
   display: flex;
   flex-wrap: wrap;
   gap: 0.8rem;
   align-items: center;
-  margin-bottom: 1.5rem;
+  justify-content: center;
+}
+
+.applyRow {
+  display: flex;
+  gap: 0.6rem;
+  align-items: center;
+  justify-content: center;
 }
 
 .transformBtn {
@@ -175,6 +214,9 @@
   padding: 0.45rem 0.85rem;
   cursor: pointer;
   transition: border-color 0.15s, color 0.15s, background 0.15s;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .transformBtn:hover,
@@ -193,6 +235,17 @@
   cursor: wait;
 }
 
+.btnFull { display: inline; }
+.btnSmall { display: none; }
+
+@media (max-width: 520px) {
+  .btnFull { display: none; }
+  .btnSmall { display: inline-flex; align-items: center; }
+  .transformRow { gap: 0.45rem; }
+  .applyRow { gap: 0.45rem; }
+  .transformBtn { padding-left: 0.55rem; padding-right: 0.55rem; }
+}
+
 .applyBtn {
   background: none;
   border: 1px solid var(--dim);
@@ -201,14 +254,19 @@
   font-size: 0.65rem;
   letter-spacing: 0.15em;
   text-transform: uppercase;
-  padding: 0.3rem 0.7rem;
+  padding: 0.45rem 0.85rem;
   cursor: pointer;
   transition: border-color 0.15s, color 0.15s, background 0.15s;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
 }
 
 .applyBtn.hasChanges {
   border-color: var(--fg);
   color: var(--fg);
+  animation: pulse 1.2s ease-in-out infinite;
 }
 
 .applyBtn.hasChanges:hover {
@@ -221,7 +279,6 @@
 }
 
 .resetTransformBtn {
-  margin-left: auto;
   border-color: var(--dim);
   color: var(--dim);
 }
@@ -237,6 +294,8 @@
   justify-content: center;
   gap: 0.8rem;
   margin-bottom: 1rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--rule);
 }
 
 .errorMsg {

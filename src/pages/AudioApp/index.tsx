@@ -3,6 +3,7 @@ import AppHeader from '../../components/AppHeader'
 import DropZone from '../../components/DropZone'
 import ConvertButton from '../../components/ConvertButton'
 import StatusMessage from '../../components/StatusMessage'
+import { useIsLandscapeMobile } from '../../hooks/useIsLandscapeMobile'
 import { transformReverse, transformSpeed, transformMono, transformNormalize, trimBuffer } from './audioTransforms'
 import { encodeWAV } from './wavEncoder'
 import { encodeMP3 } from './mp3Encoder'
@@ -156,6 +157,7 @@ function fileInfo(file: File, buf: AudioBuffer): string {
 }
 
 export default function AudioApp() {
+  const isLandscapeMobile = useIsLandscapeMobile()
   const [state, dispatch] = useReducer(reducer, initial)
   const playerRef = useRef<HTMLAudioElement>(null)
   const rafRef = useRef<number | null>(null)
@@ -422,25 +424,13 @@ export default function AudioApp() {
     ? fileInfo(state.currentFile!, state.workingBuffer)
     : ''
 
-  return (
-    <div className={styles.app}>
-      <AppHeader
-        title="audio"
-        about={<>
-          <p>Reverse, trim, or adjust the speed and volume of an audio file, then export as WAV or MP3.</p>
-          <ul>
-            <li>Drop a file anywhere on the page to load it</li>
-            <li>Toggle transforms in any combination before exporting</li>
-            <li>Trim uses the handles on the waveform display</li>
-          </ul>
-        </>}
-      />
-
+  const inner = (
+    <div className={styles.content}>
       {!hasFile && !state.statusVisible && !state.recording && (
         <>
           <DropZone accept="audio/mpeg,audio/wav,audio/aac,audio/ogg,audio/flac,audio/x-m4a,.mp3,.wav,.aac,.ogg,.flac,.m4a" onFile={loadFile} label="drop audio file here" />
           <div className={styles.recordRow}>
-            <button className={styles.recordBtn} onClick={startRecording}>● record</button>
+            <button className={styles.recordBtn} onClick={startRecording}>record</button>
           </div>
         </>
       )}
@@ -515,43 +505,65 @@ export default function AudioApp() {
             )
           })()}
 
-          <div className={styles.transformRow}>
-            {(['reverse', 'mono', 'normalize'] as const).map(action => (
+          <div className={styles.transformSection}>
+            <div className={styles.transformRow}>
+              {(['reverse', 'mono', 'normalize'] as const).map(action => (
+                <button
+                  key={action}
+                  className={[styles.transformBtn, state.selectedTransforms.includes(action) ? styles.selected : ''].filter(Boolean).join(' ')}
+                  onClick={() => toggleTransform(action)}
+                  disabled={state.buttonsDisabled}
+                >
+                  <span className={styles.btnFull}>{action}</span>
+                  <span className={styles.btnSmall}>
+                    {action === 'reverse' && (
+                      <svg width="16" height="12" viewBox="0 0 16 12" fill="none" aria-hidden="true">
+                        <path d="M14 3H3" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/>
+                        <path d="M6 1L3 3L6 5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/>
+                        <path d="M2 9H13" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/>
+                        <path d="M10 7L13 9L10 11" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/>
+                      </svg>
+                    )}
+                    {action === 'mono' && (
+                      <svg width="21" height="12" viewBox="0 0 21 12" fill="none" aria-hidden="true">
+                        <path d="M1 3H8C12 3 13 6 13 6" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/>
+                        <path d="M1 9H8C12 9 13 6 13 6" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/>
+                        <path d="M13 6H20" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/>
+                      </svg>
+                    )}
+                    {action === 'normalize' && 'norm'}
+                  </span>
+                </button>
+              ))}
+              {(['half', 'double'] as const).map(group => (
+                <button
+                  key={group}
+                  className={[styles.transformBtn, state.speedState[group] > 0 ? styles.selected : ''].filter(Boolean).join(' ')}
+                  onClick={() => cycleSpeed(group)}
+                  disabled={state.buttonsDisabled}
+                >
+                  {speedLabel(group)}
+                </button>
+              ))}
+            </div>
+            <div className={styles.applyRow}>
               <button
-                key={action}
-                className={[styles.transformBtn, state.selectedTransforms.includes(action) ? styles.selected : ''].filter(Boolean).join(' ')}
-                onClick={() => toggleTransform(action)}
+                className={[styles.applyBtn, hasChanges ? styles.hasChanges : ''].filter(Boolean).join(' ')}
+                onClick={applyTransforms}
                 disabled={state.buttonsDisabled}
               >
-                {action}
+                ✓
               </button>
-            ))}
-            {(['half', 'double'] as const).map(group => (
-              <button
-                key={group}
-                className={[styles.transformBtn, state.speedState[group] > 0 ? styles.selected : ''].filter(Boolean).join(' ')}
-                onClick={() => cycleSpeed(group)}
-                disabled={state.buttonsDisabled}
-              >
-                {speedLabel(group)}
-              </button>
-            ))}
-            <button
-              className={[styles.applyBtn, hasChanges ? styles.hasChanges : ''].filter(Boolean).join(' ')}
-              onClick={applyTransforms}
-              disabled={state.buttonsDisabled}
-            >
-              ✓
-            </button>
-            {hasTransforms && (
-              <button
-                className={[styles.applyBtn, styles.resetTransformBtn].join(' ')}
-                onClick={resetTransforms}
-                disabled={state.buttonsDisabled}
-              >
-                reset
-              </button>
-            )}
+              {hasTransforms && (
+                <button
+                  className={[styles.applyBtn, styles.resetTransformBtn].join(' ')}
+                  onClick={resetTransforms}
+                  disabled={state.buttonsDisabled}
+                >
+                  reset
+                </button>
+              )}
+            </div>
           </div>
 
           <div className={styles.convertRow}>
@@ -560,6 +572,27 @@ export default function AudioApp() {
           </div>
         </>
       )}
+    </div>
+  )
+
+  if (isLandscapeMobile) {
+    return <div className={styles.focusOverlay}>{inner}</div>
+  }
+
+  return (
+    <div className={styles.app}>
+      <AppHeader
+        title="audio"
+        about={<>
+          <p>Reverse, trim, or adjust the speed and volume of an audio file, then export as WAV or MP3.</p>
+          <ul>
+            <li>Drop a file anywhere on the page to load it</li>
+            <li>Toggle transforms in any combination before exporting</li>
+            <li>Trim uses the handles on the waveform display</li>
+          </ul>
+        </>}
+      />
+      {inner}
     </div>
   )
 }

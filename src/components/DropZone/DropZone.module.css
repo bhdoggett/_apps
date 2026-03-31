@@ -38,3 +38,16 @@
 .browseBtn {
   pointer-events: all;
 }
+
+@media (pointer: coarse) {
+  .dropZone {
+    min-height: 0;
+    cursor: default;
+    border-color: transparent;
+  }
+
+  .label,
+  .or {
+    display: none;
+  }
+}
