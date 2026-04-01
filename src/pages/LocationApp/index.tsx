@@ -47,8 +47,11 @@ export default function LocationApp() {
     setTimeout(() => setCopied(null), 1200)
   }
 
+  const isTouchDevice = window.matchMedia('(pointer: coarse)').matches
   const mapsUrl = coords
-    ? `https://www.google.com/maps/search/?api=1&query=${coords.lat},${coords.lon}`
+    ? isTouchDevice
+      ? `geo:${coords.lat},${coords.lon}`
+      : `https://www.google.com/maps/search/?api=1&query=${coords.lat},${coords.lon}`
     : null
 
   const inner = (
