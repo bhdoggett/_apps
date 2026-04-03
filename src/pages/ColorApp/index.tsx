@@ -427,16 +427,16 @@ export function renderGroupsToCanvas(
   const canvas = document.createElement('canvas')
   canvas.width = w
   canvas.height = h
-  const ctx = canvas.getContext('2d')!
+  const ctx = canvas.getContext("2d")!
 
   for (const group of groups) {
     ctx.globalAlpha = group.opacity / 100
     const sortedStops = [...group.stops].sort((a, b) => a.position - b.position)
 
-    if (group.gradientMode === 'solid') {
-      ctx.fillStyle = sortedStops[0]?.color ?? '#000000'
+    if (group.gradientMode === "solid") {
+      ctx.fillStyle = sortedStops[0]?.color ?? "#000000"
       ctx.fillRect(0, 0, w, h)
-    } else if (group.gradientMode === 'linear') {
+    } else if (group.gradientMode === "linear") {
       const rad = (group.angle * Math.PI) / 180
       const dirX = Math.sin(rad)
       const dirY = -Math.cos(rad)
@@ -450,11 +450,11 @@ export function renderGroupsToCanvas(
       for (const stop of sortedStops) grad.addColorStop(stop.position / 100, stop.color)
       ctx.fillStyle = grad
       ctx.fillRect(0, 0, w, h)
-    } else if (group.gradientMode === 'radial') {
+    } else if (group.gradientMode === "radial") {
       const cx = (group.radialCenterX / 100) * w
       const cy = (group.radialCenterY / 100) * h
       let r: number
-      if (group.radialShape === 'ellipse') {
+      if (group.radialShape === "ellipse") {
         // Canvas has no native ellipse gradient; approximate with average of rx/ry
         r = ((group.radialSizeX / 100) * w + (group.radialSizeY / 100) * h) / 2
       } else {
@@ -470,7 +470,7 @@ export function renderGroupsToCanvas(
       for (const stop of sortedStops) grad.addColorStop(stop.position / 100, stop.color)
       ctx.fillStyle = grad
       ctx.fillRect(0, 0, w, h)
-    } else if (group.gradientMode === 'conic') {
+    } else if (group.gradientMode === "conic") {
       // CSS conic starts from 12 o'clock; canvas createConicGradient starts from 3 o'clock
       const startAngle = (group.conicAngle * Math.PI) / 180 - Math.PI / 2
       const grad = ctx.createConicGradient(startAngle, w / 2, h / 2)
