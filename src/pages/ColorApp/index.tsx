@@ -419,6 +419,71 @@ function groupGradientCss(group: GradientGroup): string {
   return `conic-gradient(from ${group.conicAngle}deg, ${stopsStr})`;
 }
 
+export function renderGroupsToCanvas(
+  groups: GradientGroup[],
+  w: number,
+  h: number,
+): HTMLCanvasElement {
+  const canvas = document.createElement('canvas')
+  canvas.width = w
+  canvas.height = h
+  const ctx = canvas.getContext('2d')!
+
+  for (const group of groups) {
+    ctx.globalAlpha = group.opacity / 100
+    const sortedStops = [...group.stops].sort((a, b) => a.position - b.position)
+
+    if (group.gradientMode === 'solid') {
+      ctx.fillStyle = sortedStops[0]?.color ?? '#000000'
+      ctx.fillRect(0, 0, w, h)
+    } else if (group.gradientMode === 'linear') {
+      const rad = (group.angle * Math.PI) / 180
+      const dirX = Math.sin(rad)
+      const dirY = -Math.cos(rad)
+      const halfLen = 0.5 * (Math.abs(dirX) * w + Math.abs(dirY) * h)
+      const cx = w / 2
+      const cy = h / 2
+      const grad = ctx.createLinearGradient(
+        cx - dirX * halfLen, cy - dirY * halfLen,
+        cx + dirX * halfLen, cy + dirY * halfLen,
+      )
+      for (const stop of sortedStops) grad.addColorStop(stop.position / 100, stop.color)
+      ctx.fillStyle = grad
+      ctx.fillRect(0, 0, w, h)
+    } else if (group.gradientMode === 'radial') {
+      const cx = (group.radialCenterX / 100) * w
+      const cy = (group.radialCenterY / 100) * h
+      let r: number
+      if (group.radialShape === 'ellipse') {
+        // Canvas has no native ellipse gradient; approximate with average of rx/ry
+        r = ((group.radialSizeX / 100) * w + (group.radialSizeY / 100) * h) / 2
+      } else {
+        // farthest-corner (CSS default for circle)
+        r = Math.max(
+          Math.hypot(cx, cy),
+          Math.hypot(w - cx, cy),
+          Math.hypot(cx, h - cy),
+          Math.hypot(w - cx, h - cy),
+        )
+      }
+      const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, r)
+      for (const stop of sortedStops) grad.addColorStop(stop.position / 100, stop.color)
+      ctx.fillStyle = grad
+      ctx.fillRect(0, 0, w, h)
+    } else if (group.gradientMode === 'conic') {
+      // CSS conic starts from 12 o'clock; canvas createConicGradient starts from 3 o'clock
+      const startAngle = (group.conicAngle * Math.PI) / 180 - Math.PI / 2
+      const grad = ctx.createConicGradient(startAngle, w / 2, h / 2)
+      for (const stop of sortedStops) grad.addColorStop(stop.position / 100, stop.color)
+      ctx.fillStyle = grad
+      ctx.fillRect(0, 0, w, h)
+    }
+  }
+
+  ctx.globalAlpha = 1
+  return canvas
+}
+
 function gradientCss(state: State): string {
   if (state.groups.length === 1) {
     const g = state.groups[0];
