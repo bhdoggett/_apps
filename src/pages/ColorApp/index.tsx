@@ -1825,26 +1825,69 @@ export default function ColorApp() {
           )}
         </div>
 
-        {/* CSS output */}
-        <pre
-          className={[
-            styles.cssOutput,
-            state.gradientCopied ? styles.copied : "",
-          ]
-            .filter(Boolean)
-            .join(" ")}
-          onClick={() => {
-            navigator.clipboard.writeText(gradCss).then(() => {
-              dispatch({ type: "SET_GRADIENT_COPIED", value: true });
-              setTimeout(
-                () => dispatch({ type: "SET_GRADIENT_COPIED", value: false }),
-                1200,
-              );
-            });
-          }}
-        >
-          {state.gradientCopied ? "copied" : gradCss}
-        </pre>
+        {/* Export row */}
+        <div className={styles.exportRow}>
+          {(["code", "jpg", "png", "webp"] as const).map((fmt) => (
+            <button
+              key={fmt}
+              className={[
+                styles.uploadLink,
+                activeExport === fmt ? styles.exportBtnActive : "",
+              ]
+                .filter(Boolean)
+                .join(" ")}
+              onClick={() => handleExportClick(fmt)}
+            >
+              {fmt === "code" && state.gradientCopied ? "copied" : fmt}
+            </button>
+          ))}
+        </div>
+
+        {activeExport === "code" && (
+          <pre className={styles.cssOutput}>{gradCss}</pre>
+        )}
+
+        {activeExport !== null && activeExport !== "code" && (
+          <div className={styles.sizingPanel}>
+            <div className={styles.presetRow}>
+              {EXPORT_PRESETS.map((p) => (
+                <button
+                  key={p.label}
+                  className={styles.uploadLink}
+                  onClick={() => handleDownload(activeExport, p.w, p.h)}
+                >
+                  {p.label}
+                </button>
+              ))}
+            </div>
+            <div className={styles.customRow}>
+              <input
+                type="number"
+                className={styles.dimInput}
+                value={customW}
+                min={1}
+                max={7680}
+                onChange={(e) => setCustomW(Number(e.target.value))}
+              />
+              <span className={styles.dimSep}>×</span>
+              <input
+                type="number"
+                className={styles.dimInput}
+                value={customH}
+                min={1}
+                max={7680}
+                onChange={(e) => setCustomH(Number(e.target.value))}
+              />
+              <button
+                className={styles.uploadLink}
+                onClick={() => handleDownload(activeExport, customW, customH)}
+              >
+                download
+              </button>
+            </div>
+          </div>
+        )}
+
         <div className={styles.shareRow}>
           <button
             className={styles.uploadLink}
