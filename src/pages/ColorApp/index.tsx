@@ -456,7 +456,8 @@ export function renderGroupsToCanvas(
       const cy = (group.radialCenterY / 100) * h
       let r: number
       if (group.radialShape === "ellipse") {
-        // Canvas has no native ellipse gradient; approximate with average of rx/ry
+        // Canvas 2D has no ellipse gradient; averaging rx/ry into a circle radius.
+        // The download will visually differ from the CSS preview for non-square ellipses.
         r = ((group.radialSizeX / 100) * w + (group.radialSizeY / 100) * h) / 2
       } else {
         // farthest-corner (CSS default for circle)

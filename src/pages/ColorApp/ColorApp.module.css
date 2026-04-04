@@ -726,12 +726,6 @@
   white-space: pre-wrap;
   word-break: break-all;
   line-height: 1.5;
-  cursor: pointer;
-  transition: opacity 0.15s;
-}
-
-.cssOutput:hover {
-  opacity: 0.7;
 }
 
 .cssOutput.copied {
