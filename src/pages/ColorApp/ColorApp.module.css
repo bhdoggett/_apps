@@ -875,3 +875,57 @@
     display: none;
   }
 }
+
+/* Export bottom bar */
+.exportRow {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.exportBtnActive {
+  border-color: var(--fg);
+  color: var(--fg);
+}
+
+.sizingPanel {
+  margin-bottom: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.presetRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.customRow {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.dimInput {
+  font-family: var(--font-mono);
+  font-size: 0.6rem;
+  background: none;
+  border: 1px solid var(--dim);
+  color: var(--fg);
+  padding: 0.35rem 0.5rem;
+  width: 5rem;
+  text-align: center;
+  -moz-appearance: textfield;
+}
+
+.dimInput::-webkit-inner-spin-button,
+.dimInput::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+}
+
+.dimSep {
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  color: var(--muted);
+}
