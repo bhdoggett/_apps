@@ -105,6 +105,13 @@ function reducer(state: State, action: Action): State { ... }
 
 ---
 
+## Shared utilities
+| Utility | Path | Use for |
+|---------|------|---------|
+| `downloadCanvas` | `src/utils/downloadCanvas.ts` | Canvas → png/jpg/webp file download. Always use this — never inline. |
+
+---
+
 ## UX patterns
 
 **Copy-on-click:** click value → copy → show "copied" for 1.2s via `setTimeout`.

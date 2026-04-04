@@ -277,6 +277,14 @@ input[type="number"]::-webkit-outer-spin-button {
 
 ---
 
+## Shared utilities
+
+| Utility | Path | Use for |
+|---------|------|---------|
+| `downloadCanvas` | `src/utils/downloadCanvas.ts` | Downloading a canvas element as png/jpg/webp — **always use this, never inline the download logic** |
+
+---
+
 ## Adding a new app
 
 1. **Create the page files**
