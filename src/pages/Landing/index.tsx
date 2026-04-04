@@ -290,7 +290,8 @@ export default function Landing() {
     .filter((a) => a.name.includes(lq));
   const unstarredApps = apps
     .filter((a) => !starred.includes(a.path))
-    .filter((a) => a.name.includes(lq));
+    .filter((a) => a.name.includes(lq))
+    .sort((a, b) => a.name.localeCompare(b.name));
 
   return (
     <div className={styles.body}>
