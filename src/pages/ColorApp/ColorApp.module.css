@@ -26,7 +26,9 @@
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  transition: border-color 0.15s, color 0.15s;
+  transition:
+    border-color 0.15s,
+    color 0.15s;
 }
 
 .iconBtn:hover,
@@ -45,7 +47,9 @@
   text-transform: uppercase;
   padding: 0.4rem 0.8rem;
   cursor: pointer;
-  transition: border-color 0.15s, color 0.15s;
+  transition:
+    border-color 0.15s,
+    color 0.15s;
 }
 
 .uploadLink:hover,
@@ -128,7 +132,7 @@
   height: 10px;
   border-radius: 50%;
   border: 2px solid #fff;
-  box-shadow: 0 0 0 1px rgba(0,0,0,0.4);
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.4);
   transform: translate(-50%, -50%);
   pointer-events: none;
 }
@@ -232,7 +236,11 @@
     linear-gradient(45deg, transparent 75%, #cccccc 75%),
     linear-gradient(-45deg, transparent 75%, #cccccc 75%);
   background-size: 12px 12px;
-  background-position: 0 0, 0 6px, 6px -6px, -6px 0px;
+  background-position:
+    0 0,
+    0 6px,
+    6px -6px,
+    -6px 0px;
   overflow: hidden;
 }
 
@@ -301,7 +309,6 @@
   margin: 0.25rem 0;
 }
 
-
 .addToGradientRow {
   display: flex;
   justify-content: center;
@@ -364,7 +371,6 @@
   flex-shrink: 0;
   padding-block: 1rem;
 }
-
 
 .gradientBar {
   position: relative;
@@ -497,7 +503,9 @@
   text-transform: uppercase;
   padding: 0.45rem 0.85rem;
   cursor: pointer;
-  transition: border-color 0.15s, color 0.15s;
+  transition:
+    border-color 0.15s,
+    color 0.15s;
 }
 
 .transformBtn:hover,
@@ -556,7 +564,6 @@
   width: 3.5rem;
 }
 
-
 .stopControls {
   display: flex;
   flex-wrap: wrap;
@@ -609,7 +616,6 @@
   padding-top: 0.2rem;
 }
 
-
 /* Layer tabs */
 .layerTabs {
   display: flex;
@@ -631,7 +637,9 @@
   text-transform: uppercase;
   padding: 0.3rem 0.5rem;
   cursor: pointer;
-  transition: border-color 0.15s, color 0.15s;
+  transition:
+    border-color 0.15s,
+    color 0.15s;
   background: none;
 }
 
@@ -867,8 +875,11 @@
 /* Export bottom bar */
 .exportRow {
   display: flex;
+  justify-content: center;
   gap: 0.5rem;
   margin-bottom: 0.75rem;
+  border-top: 1px solid var(--rule);
+  padding-top: 0.75rem;
 }
 
 .exportBtnActive {
@@ -877,7 +888,7 @@
 }
 
 .sizingPanel {
-  margin-bottom: 0.75rem;
+  margin: 0 1.5rem 0.75rem;
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
@@ -886,11 +897,18 @@
 .presetRow {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.5rem;
+  justify-content: center;
+  gap: 0.3rem;
+}
+
+.presetRow .uploadLink {
+  padding-left: 0.5rem;
+  padding-right: 0.5rem;
 }
 
 .customRow {
   display: flex;
+  justify-content: center;
   align-items: center;
   gap: 0.5rem;
 }
@@ -916,4 +934,40 @@
   font-family: var(--font-mono);
   font-size: 0.7rem;
   color: var(--muted);
+}
+
+@media (max-width: 620px) {
+  .presetName {
+    display: none;
+  }
+
+  .sizingPanel {
+    margin-left: 0;
+    margin-right: 0;
+  }
+
+  .exportRow .uploadLink,
+  .presetRow .uploadLink,
+  .customRow .uploadLink,
+  .dimInput {
+    padding: 0.25rem 0.5rem;
+  }
+
+  .presetRow .uploadLink {
+    letter-spacing: 0.13em;
+  }
+
+  .exportRow .uploadLink,
+  .presetRow .uploadLink {
+    flex: 1;
+    text-align: center;
+  }
+
+  .exportRow {
+    gap: 0.35rem;
+  }
+
+  .presetRow {
+    gap: 0.35rem;
+  }
 }

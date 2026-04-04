@@ -638,10 +638,9 @@ function ColorWheelPicker({
 }
 
 const EXPORT_PRESETS = [
-  { label: "desktop 1920×1080", w: 1920, h: 1080 },
-  { label: "mobile 1080×1920", w: 1080, h: 1920 },
-  { label: "square 1080×1080", w: 1080, h: 1080 },
-  { label: "4k 3840×2160", w: 3840, h: 2160 },
+  { name: "desktop", dims: "1920×1080", w: 1920, h: 1080 },
+  { name: "mobile", dims: "1080×1920", w: 1080, h: 1920 },
+  { name: "square", dims: "1080×1080", w: 1080, h: 1080 },
 ]
 
 export default function ColorApp() {
@@ -1851,7 +1850,7 @@ export default function ColorApp() {
               });
             }}
           >
-            {linkCopied ? "copied" : "copy link"}
+            {linkCopied ? "copied" : "link"}
           </button>
         </div>
 
@@ -1864,11 +1863,11 @@ export default function ColorApp() {
             <div className={styles.presetRow}>
               {EXPORT_PRESETS.map((p) => (
                 <button
-                  key={p.label}
+                  key={p.dims}
                   className={styles.uploadLink}
                   onClick={() => handleDownload(activeExport, p.w, p.h)}
                 >
-                  {p.label}
+                  <span className={styles.presetName}>{p.name} </span>{p.dims}
                 </button>
               ))}
             </div>
