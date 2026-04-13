@@ -94,6 +94,15 @@ const SIZE_PRESETS: [number, number][] = [
 
 const MAX_HISTORY = 30
 
+const CANVAS_PRESETS = [
+  { label: 'square',    w: 800,  h: 800  },
+  { label: 'landscape', w: 1240, h: 700  },
+  { label: 'portrait',  w: 700,  h: 990  },
+  { label: 'letter',    w: 850,  h: 1100 },
+  { label: 'A4',        w: 800,  h: 1130 },
+  { label: 'wide',      w: 1240, h: 520  },
+]
+
 // dxSign: +1 = drag right grows W, -1 = drag left grows W
 // dySign: +1 = drag down grows H, -1 = drag up grows H
 // rot: SVG rotation so dots point toward the corner
@@ -284,6 +293,7 @@ export default function DrawApp() {
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const canvasRef = useRef<HTMLCanvasElement>(null)
+  const uploadInputRef = useRef<HTMLInputElement>(null)
   const isDrawing = useRef(false)
   const lastPos = useRef<{ x: number; y: number } | null>(null)
   const lastMid = useRef<{ x: number; y: number } | null>(null)
@@ -298,6 +308,8 @@ export default function DrawApp() {
   const actualDimsRef = useRef({ w: state.canvasW, h: state.canvasH })
   const [commitCount, setCommitCount] = useState(0)
   const [isResizing, setIsResizing] = useState(false)
+  const [isUploading, setIsUploading] = useState(false)
+  const [showCanvasPresets, setShowCanvasPresets] = useState(false)
   const resizeDragRef = useRef<{ startX: number; startY: number; startW: number; startH: number; displayW: number; displayH: number; dxSign: number; dySign: number; anchorX: number; anchorY: number } | null>(null)
   const resizeAnchorRef = useRef({ x: 0, y: 0 })
   const stateRef = useRef(state)
@@ -626,6 +638,52 @@ export default function DrawApp() {
     saveHistory()
   }
 
+  const loadImage = (file: File) => {
+    setIsUploading(true)
+    const url = URL.createObjectURL(file)
+    const img = new Image()
+    img.onload = () => {
+      URL.revokeObjectURL(url)
+      // Scale down to fit within max canvas dims, preserving aspect ratio
+      const MAX_W = 1240, MAX_H = 2000
+      const scale = Math.min(1, MAX_W / img.width, MAX_H / img.height)
+      const w = clampCanvasW(Math.round(img.width * scale))
+      const h = clampCanvasH(Math.round(img.height * scale))
+      pendingResizeRef.current = null
+      actualDimsRef.current = { w, h }
+      dispatch({ type: 'SET_CANVAS_W', w })
+      dispatch({ type: 'SET_CANVAS_H', h })
+      // Draw image after canvas resizes via commitCount effect
+      pendingRestoreRef.current = null
+      const drawImg = () => {
+        const canvas = canvasRef.current
+        if (!canvas || canvas.width !== w || canvas.height !== h) {
+          requestAnimationFrame(drawImg)
+          return
+        }
+        const ctx = canvas.getContext('2d')!
+        ctx.fillStyle = '#ffffff'
+        ctx.fillRect(0, 0, w, h)
+        ctx.drawImage(img, 0, 0, w, h)
+        saveHistory()
+        setIsUploading(false)
+      }
+      setCommitCount(c => c + 1)
+      requestAnimationFrame(drawImg)
+    }
+    img.src = url
+  }
+
+  useEffect(() => {
+    if (!showCanvasPresets) return
+    const close = (e: MouseEvent) => {
+      const target = e.target as HTMLElement
+      if (!target.closest(`.${styles.presetWrap}`)) setShowCanvasPresets(false)
+    }
+    document.addEventListener('mousedown', close)
+    return () => document.removeEventListener('mousedown', close)
+  }, [showCanvasPresets])
+
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
       if (e.repeat) return
@@ -769,42 +827,82 @@ export default function DrawApp() {
 
         <div className={styles.toolbarRowGrid}>
           <div className={styles.historyGroup}>
-            <button className={styles.toolBtn} onClick={undo} title="Undo (Cmd+Z)">undo</button>
-            <button className={styles.toolBtn} onClick={redo} title="Redo (Cmd+Shift+Z)">redo</button>
+            <button className={styles.toolBtn} onClick={undo} title="Undo (Cmd+Z)" aria-label="Undo" style={{ transform: 'scaleY(-1)', fontSize: '1.1rem', padding: '0 0.5rem' }}>↩</button>
+            <button className={styles.toolBtn} onClick={redo} title="Redo (Cmd+Shift+Z)" aria-label="Redo" style={{ transform: 'scaleY(-1)', fontSize: '1.1rem', padding: '0 0.5rem' }}>↪</button>
             <button className={styles.toolBtn} onClick={clear}>clear</button>
+            <button className={styles.toolBtn} onClick={() => uploadInputRef.current?.click()} disabled={isUploading}>upload</button>
+            <input
+              ref={uploadInputRef}
+              type="file"
+              accept="image/*"
+              style={{ display: 'none' }}
+              onChange={(e) => {
+                const file = e.target.files?.[0]
+                if (file) loadImage(file)
+                e.target.value = ''
+              }}
+            />
           </div>
           <div className={styles.canvasSizeGroup}>
-            <DragNumber
-              value={state.canvasW}
-              min={200}
-              max={1240}
-              step={10}
-              pixelsPerUnit={1}
-              className={styles.canvasSizeInput}
-              onChange={(v) => {
-                resizeAnchorRef.current = { x: 0, y: 0 }
-                setIsResizing(true)
-                dispatch({ type: 'SET_CANVAS_W', w: v })
-              }}
-              onCommit={(v) => { setIsResizing(false); commitResize(v, state.canvasH) }}
-            />
-            <span className={styles.label}>×</span>
-            <DragNumber
-              value={state.canvasH}
-              min={200}
-              max={2000}
-              step={10}
-              pixelsPerUnit={1}
-              className={styles.canvasSizeInput}
-              onChange={(v) => {
-                resizeAnchorRef.current = { x: 0, y: 0 }
-                setIsResizing(true)
-                dispatch({ type: 'SET_CANVAS_H', h: v })
-              }}
-              onCommit={(v) => { setIsResizing(false); commitResize(state.canvasW, v) }}
-            />
-          </div>
-          <div className={styles.cropCol}>
+            <div className={styles.dimControls}>
+              <div className={styles.presetWrap}>
+                <button
+                  className={[styles.toolBtnIcon, showCanvasPresets ? styles.active : ''].filter(Boolean).join(' ')}
+                  onClick={() => setShowCanvasPresets(v => !v)}
+                  aria-label="Canvas size presets"
+                >
+                  <svg width="8" height="6" viewBox="0 0 8 6" fill="currentColor">
+                    <path d="M0 0h8L4 6z" />
+                  </svg>
+                </button>
+                {showCanvasPresets && (
+                  <div className={styles.presetDropdown}>
+                    {CANVAS_PRESETS.map(({ label, w, h }) => (
+                      <button
+                        key={label}
+                        className={styles.presetOption}
+                        onClick={() => {
+                          setShowCanvasPresets(false)
+                          commitResize(w, h)
+                        }}
+                      >
+                        <span className={styles.presetLabel}>{label}</span>
+                        <span className={styles.presetDims}>{w}×{h}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <DragNumber
+                value={state.canvasW}
+                min={200}
+                max={1240}
+                step={10}
+                pixelsPerUnit={1}
+                className={styles.canvasSizeInput}
+                onChange={(v) => {
+                  resizeAnchorRef.current = { x: 0, y: 0 }
+                  setIsResizing(true)
+                  dispatch({ type: 'SET_CANVAS_W', w: v })
+                }}
+                onCommit={(v) => { setIsResizing(false); commitResize(v, state.canvasH) }}
+              />
+              <span className={styles.label}>×</span>
+              <DragNumber
+                value={state.canvasH}
+                min={200}
+                max={2000}
+                step={10}
+                pixelsPerUnit={1}
+                className={styles.canvasSizeInput}
+                onChange={(v) => {
+                  resizeAnchorRef.current = { x: 0, y: 0 }
+                  setIsResizing(true)
+                  dispatch({ type: 'SET_CANVAS_H', h: v })
+                }}
+                onCommit={(v) => { setIsResizing(false); commitResize(state.canvasW, v) }}
+              />
+            </div>
             <span className={[styles.label, styles.cropLabel].join(' ')}>crop</span>
             <button
               className={[styles.toolBtnIcon, state.showHandles ? styles.active : ''].filter(Boolean).join(' ')}
@@ -825,6 +923,7 @@ export default function DrawApp() {
         className={styles.canvasWrap}
         style={{ width: `${Math.min(100, (actualDimsRef.current.w / 1240) * 100)}%`, margin: '0 auto' }}
       >
+        {isUploading && <div className={styles.spinnerOverlay}><div className={styles.spinner} /></div>}
         <canvas
           ref={canvasRef}
           className={styles.canvas}

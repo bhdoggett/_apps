@@ -20,7 +20,7 @@
 
 .toolbarRowGrid {
   display: grid;
-  grid-template-columns: 1fr 1fr 1fr;
+  grid-template-columns: 1fr auto;
   align-items: center;
 }
 
@@ -28,15 +28,82 @@
   display: flex;
   align-items: center;
   gap: 0.35rem;
-  justify-content: center;
+  justify-content: flex-end;
 }
 
-.cropCol {
+.dimControls {
   display: flex;
   align-items: center;
-  justify-content: flex-end;
-  gap: 0.4rem;
+  gap: 0.35rem;
 }
+
+.dimControls .presetWrap {
+  margin-right: -0.2rem;
+}
+
+.presetWrap {
+  position: relative;
+}
+
+.presetWrap .toolBtnIcon {
+  padding: 0;
+  width: 1.55rem;
+  height: 1.55rem;
+  border: none;
+}
+
+.presetDropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--bg);
+  border: 1px solid var(--dim);
+  z-index: 100;
+  min-width: 9rem;
+  display: flex;
+  flex-direction: column;
+}
+
+.presetOption {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+  background: none;
+  border: none;
+  border-bottom: 1px solid var(--rule);
+  padding: 0.3rem 0.55rem;
+  cursor: pointer;
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  white-space: nowrap;
+  transition: color 0.15s;
+}
+
+.presetOption:last-child {
+  border-bottom: none;
+}
+
+.presetOption:hover {
+  color: var(--fg);
+}
+
+.presetLabel {
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+
+.presetDims {
+  color: var(--dim);
+  font-size: 0.65rem;
+}
+
+.presetOption:hover .presetDims {
+  color: var(--muted);
+}
+
 
 .cropLabel {
   display: none;
@@ -83,13 +150,38 @@
   color: var(--fg);
 }
 
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.spinnerOverlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.15);
+  z-index: 10;
+  border-radius: 4px;
+}
+
+.spinner {
+  width: 28px;
+  height: 28px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+
 .toolBtn {
   background: none;
   border: 1px solid var(--dim);
   color: var(--muted);
   font-family: var(--font-mono);
   font-size: 0.75rem;
-  padding: 0.25rem 0.5rem;
+  padding: 0 0.5rem;
+  height: 1.55rem;
   cursor: pointer;
   transition: border-color 0.15s, color 0.15s;
 }
@@ -218,8 +310,9 @@
   font-family: var(--font-mono);
   font-size: 0.65rem;
   letter-spacing: 0.1em;
-  padding: 0.25rem 0.4rem;
-  width: 3.2rem;
+  padding: 0 0.4rem;
+  width: 2.8rem;
+  height: 1.55rem;
 }
 
 .label {
@@ -331,12 +424,12 @@
     height: 24px;
   }
 
-  .canvasSizeGroup {
+  .dimControls {
     display: none;
   }
 
   .toolbarRowGrid {
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: 1fr auto;
   }
 }
 
