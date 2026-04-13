@@ -10,6 +10,7 @@ interface Props {
   className?: string
   pixelsPerUnit?: number
   step?: number
+  dragOnly?: boolean
 }
 
 export default function DragNumber({
@@ -21,6 +22,7 @@ export default function DragNumber({
   className,
   pixelsPerUnit = 1.5,
   step = 1,
+  dragOnly = false,
 }: Props) {
   const [text, setText] = useState(String(value))
   const inputRef = useRef<HTMLInputElement>(null)
@@ -48,6 +50,9 @@ export default function DragNumber({
         }
       }}
       onBlur={() => { setText(String(value)); onCommit?.(value) }}
+      readOnly={dragOnly}
+      onDoubleClick={dragOnly ? (e) => e.preventDefault() : undefined}
+      onContextMenu={dragOnly ? (e) => e.preventDefault() : undefined}
       onWheel={(e) => e.currentTarget.blur()}
       onPointerDown={(e) => {
         // Prevent the browser from auto-focusing the input on touch — we'll
@@ -73,7 +78,7 @@ export default function DragNumber({
           document.removeEventListener('pointermove', onMove)
           document.removeEventListener('pointerup', onUp)
           document.removeEventListener('pointercancel', onUp)
-          if (!wasDragging) {
+          if (!wasDragging && !dragOnly) {
             // Tap without drag — focus so the user can type (browser zooms as normal)
             inputRef.current?.focus()
           } else {

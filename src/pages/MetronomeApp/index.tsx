@@ -179,6 +179,7 @@ export default function MetronomeApp() {
             max={240}
             onChange={setBpm}
             className={styles.bpmInput}
+            dragOnly
           />
           <div className={styles.bpmLabel}>bpm</div>
         </div>
@@ -223,6 +224,7 @@ export default function MetronomeApp() {
             onChange={setBeats}
             className={styles.timeSigNum}
             pixelsPerUnit={8}
+            dragOnly
           />
           <button
             className={styles.adjBtn}

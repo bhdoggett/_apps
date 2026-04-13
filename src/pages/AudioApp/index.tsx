@@ -236,15 +236,25 @@ function reducer(state: State, action: Action): State {
   }
 }
 
-function download(blob: Blob, filename: string) {
+async function download(blob: Blob, filename: string) {
+  const file = new File([blob], filename, { type: blob.type });
+  if (navigator.canShare?.({ files: [file] })) {
+    try {
+      await navigator.share({ files: [file], title: filename });
+      return;
+    } catch (e) {
+      if ((e as Error).name === "AbortError") return;
+    }
+  }
+  const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
-  a.href = URL.createObjectURL(blob);
+  a.href = url;
   a.download = filename;
   a.style.display = "none";
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
-  URL.revokeObjectURL(a.href);
+  URL.revokeObjectURL(url);
 }
 
 function fileInfo(file: File, buf: AudioBuffer): string {
@@ -546,7 +556,7 @@ export default function AudioApp() {
             ? await encodeMP3(bufToEncode)
             : encodeWAV(bufToEncode);
         const name = state.currentFile!.name.replace(/\.[^.]+$/, "");
-        download(blob, `${name}.${format}`);
+        await download(blob, `${name}.${format}`);
         dispatch({ type: "ENCODE_DONE", playerSrc: prevSrc });
       } catch {
         dispatch({ type: "ENCODE_ERROR" });
