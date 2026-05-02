@@ -5,3 +5,4 @@ todo
 .worktrees
 docs
 .DS_Store
+.fallow/
